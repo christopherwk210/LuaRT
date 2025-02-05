@@ -24,7 +24,7 @@ elseif ui.dpi >= 1.75 then
     factor = 2
 end
 
-local win = ui.Window("", "raw", 400, 155*factor)
+local win = ui.Window("", "raw", 400, math.floor(155*factor))
 win.font = "Segoe UI"
 win.installation = false
 
