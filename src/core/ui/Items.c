@@ -95,9 +95,10 @@ LRESULT CALLBACK PageProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) {
 			return SendMessage((HWND)lParam, Msg, wParam, lParam);
 		case WM_CONTEXTMENU: 
 		case WM_MOUSEMOVE:
-			lParam = MAKELPARAM(GET_X_LPARAM(lParam), AdjustTab_height(w)+GET_Y_LPARAM(lParam));		
+			if (w->wtype == UITab)
+				lParam = MAKELPARAM(GET_X_LPARAM(lParam), AdjustTab_height(w)+GET_Y_LPARAM(lParam));		
 		case WM_MOUSELEAVE:
-			return WindowProc(hWnd, Msg, 0, lParam);
+			return WindowProc(hWnd, Msg, wParam, lParam);
 		case WM_SYSKEYDOWN:
 			SendMessage(GetParent(w->handle), WM_SYSKEYDOWN, wParam, lParam);
 			return FALSE;		

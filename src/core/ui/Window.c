@@ -793,6 +793,8 @@ LUA_METHOD(Window, __gc) {
 	notify(L, w, NIM_DELETE, NIF_ICON, NULL, NULL, 0);
 	if (w->imglist)
 		free(w->item.listitem);
+	if (w->user)
+		DeleteObject((HBRUSH)w->user);
 	w->imglist = NULL;
 	return Widget___gc(L);
 }
