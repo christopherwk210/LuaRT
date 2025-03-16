@@ -10,8 +10,7 @@
 #include <File.h> 
 #include "encoder.h"
 
-#define MINIAUDIO_IMPLEMENTATION
-#include "miniaudio.h"
+#include "miniaudio.c"
 
 #undef STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
@@ -205,7 +204,7 @@ LUA_PROPERTY_SET(audio, gain) {
 
 LUA_METHOD(audio, play) {
   wchar_t *fname = luaL_checkFilename(L, 1);
-  ma_result r = ma_engine_play_sound(engine, fname, NULL);
+  ma_result r = ma_engine_play_sound_w(engine, fname, NULL);
   
   free(fname);
   if (r != MA_SUCCESS)
@@ -235,10 +234,9 @@ LUA_METHOD(record, start) {
 
   if (format == -1)
     luaL_error(L, "'%s' encoder not supported", lua_tostring(L, 2));
-  if (!(record.encoder = Encoder_Create(fname, format, channels, sampleRate, bitrate, &record.id)))
-    luaL_error(L, "failed to initialize %s encoder", AudioFormatNames[format]);
+  lua_pushboolean(L, (record.encoder = Encoder_Create(fname, format, channels, sampleRate, bitrate, &record.id)) != 0);
   free(fname);
-  return 0;
+  return 1;
 }
 
 //------------------------------- audio module properties definition

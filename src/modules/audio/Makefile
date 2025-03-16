@@ -14,7 +14,7 @@ VERBOSE= >nul 2>&1
 
 
 MODULE=		audio
-VERSION=	1.0
+VERSION=	1.5
 SRC= 		src\audio.obj src\sound.obj src\ma_reverb_node.obj src\encoder.obj 
 
 !if "$(BUILD)" == "debug"

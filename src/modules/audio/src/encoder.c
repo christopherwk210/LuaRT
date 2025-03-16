@@ -108,8 +108,6 @@ void Encoder_Release(Encoder *encoder) {
     ma_device_stop(&encoder->device);
     ma_device_uninit(&encoder->device);
     if (encoder->writer) {
-        IMFSinkWriter_Flush(encoder->writer, encoder->stream);
-        if (encoder->kind == WAV)
             IMFSinkWriter_Finalize(encoder->writer);
         if (encoder->writer)
             IMFSinkWriter_Release(encoder->writer);
