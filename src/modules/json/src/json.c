@@ -45,7 +45,7 @@ static void LuaToJson(lua_State *L, Value *v) {
         default: if (strcmp(lua_tostring(L, -1), "null") == 0)
                     SetNull(v);
                  else
-                    SetStrFast(v, lua_tostring(L, -1));
+                     SetStrEscape(v, lua_tostring(L, -1));
     }
 }
 

@@ -12,7 +12,7 @@
 VERBOSE= >nul 2>&1
 
 MODULE=		json
-VERSION=	0.6
+VERSION=	0.7
 SRC= 		src\json.obj
 
 !if "$(BUILD)" == "debug"
