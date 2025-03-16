@@ -205,25 +205,28 @@
 #define LUA_LDIR	"!\\lua\\"
 #define LUA_CDIR	"!\\"
 #define LUA_SHRDIR	"!\\..\\modules\\"
+#define LUA_RTCDIR	"__modules\\"
 
 #if !defined(LUA_PATH_DEFAULT)
 #define LUA_PATH_DEFAULT  \
 		LUA_LDIR"?.lua;"  LUA_LDIR"?\\init.lua;" \
 		LUA_CDIR"?.lua;"  LUA_CDIR"?\\init.lua;" \
+		LUA_LDIR"?.wlua;" LUA_CDIR"?\\?.wlua;" \
 		LUA_SHRDIR"?\\?.lua;" LUA_SHRDIR"?\\init.lua;" \
-		".\\?.lua;" ".\\?.wlua;" ".\\?\\init.lua;" \
-		LUA_LDIR"?.wlua;" LUA_CDIR"?.wlua;" \
-		LUA_SHRDIR"?\\?.wlua;" ".\\?.wlua;"
+		LUA_SHRDIR"?.lua;" LUA_SHRDIR"?.wlua;" \
+		LUA_RTCDIR"?\\?.lua;" LUA_RTCDIR"?\\init.lua;" \
+		LUA_RTCDIR"?.lua;" LUA_RTCDIR"?.wlua;" LUA_RTCDIR"?\\?.wlua;" \
+		".\\?.lua;" ".\\?.wlua;" ".\\?\\init.lua" 
 #endif
 
 #if !defined(LUA_CPATH_DEFAULT)
 #define LUA_CPATH_DEFAULT \
 		LUA_CDIR"?.dll;" \
 		LUA_CDIR"..\\lib\\lua\\" LUA_VDIR "\\?.dll;" \
-		LUA_SHRDIR"?\\?.dll;"  \
-		LUA_CDIR"loadall.dll;" ".\\?.dll;"
+		LUA_SHRDIR"?\\?.dll;" LUA_SHRDIR"?.dll;" \
+		LUA_RTCDIR"?\\?.dll;" LUA_RTCDIR"?.dll;" \
+		LUA_CDIR"loadall.dll;" ".\\?.dll"
 #endif
-
 #else			/* }{ */
 
 #define LUA_ROOT	"/usr/local/"

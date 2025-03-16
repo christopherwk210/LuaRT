@@ -1,5 +1,9 @@
 # rtc Changelog
 
+## rtc v1.9.5 (March 22 2025)
+- Updated: `rtc` now supports submodules linking
+
+
 ## rtc v1.9.0 (Jan 27 2025)
 - Updated: `rtc` generates executable with Lua 5.4.7 VM
 - Updated: DLL binary modules dependencies are now resolved transparently in the embedded content

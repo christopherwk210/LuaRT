@@ -124,19 +124,20 @@ local function error(err)
 	_error(err:gsub('%[string "([%w%.]+)"%]', "%1"))
 end
 
-
 for f in each(files) do
-	local content = f:open():read()
-	local result, err = load(content, f.name)
-	if result == nil then
-		error(err)
+	if directory == nil or f.directory.fullpath:usearch(directory.fullpath) == nil then
+		local content = f:open():read()
+		local result, err = load(content, f.name)
+		if result == nil then
+			error(err)
+		end
+		local fname = sys.tempfile("luartc_file_")
+		fname:open("write", "binary")
+		fname:write(content)
+		fname:close()
+		z:write(fname, f.name)
+		fname:remove()
 	end
-	local fname = sys.tempfile("luartc_file_")
-	fname:open("write", "binary")
-	fname:write(content)
-	fname:close()
-	z:write(fname, f.name)
-	fname:remove()
 end
 
 local fname = sys.tempfile("luartc_file_"):open("write", "binary")
@@ -147,18 +148,16 @@ fname:remove()
 
 
 for lib in each(libs) do
-	local libpath = sys.Directory(sys.File(arg[-1]).path.."/../modules/").exists and sys.File(arg[-1]).path.."/../modules/" or sys.File(arg[-1]).path.."/modules/"
-	local libfile = sys.File(libpath..lib.."/"..lib..".dll")
-	if not libfile.exists then
-		libfile = sys.File(libpath.."/"..lib..".dll")
-		if not libfile.exists then
-			libfile = sys.File(lib..".dll")
-		end
-	end
-	if libfile.exists then
-		z:write(libfile)
+	local libpath = sys.Directory(sys.File(arg[-1]).path.."..\\modules\\").exists and sys.File(arg[-1]).path.."..\\modules\\"..lib or sys.File(arg[-1]).path.."modules\\"..lib
+	if sys.Directory(libpath).exists then
+		z:write(libpath, "__modules/"..lib)
 	else
-		error("module '"..lib.."' not found")
+		libfile = sys.File(lib..".dll")
+		if not libfile.exists then
+			error("module '"..lib.."' not found")
+		else
+			z:write(libfile)
+		end
 	end
 end
 
@@ -167,7 +166,7 @@ if directory ~= nil then
 end
 z:close()
 
-output = sys.File(output or file.name:gusub("(%w+)$", "exe"))
+output = sys.File(output or file.fullpath:gusub("(%w+)$", "exe"))
 output:remove()
 target:copy(output.fullpath)
 target:remove()
