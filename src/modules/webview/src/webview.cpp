@@ -200,26 +200,6 @@ LUA_METHOD(call, cdp) {
   return 1;
 }
 
-// LUA_METHOD(index, cdp) {
-// 	luaL_checkstring(L, 2);
-// 	lua_getmetatable(L, 1);
-// 	if (lua_getfield(L, -1, "__cdp")) {
-// 		lua_pushstring(L, ".");
-// 		lua_pushvalue(L, 2);
-// 		lua_concat(L, 3);
-// 	} else {
-// 		lua_createtable(L, 0, 2);
-
-// 	}
-
-// 	// lua_createtable(L, 0, 0);
-// 	// lua_createtable(L, 0, 1);
-// 	// lua_pushvalue(L, lua_upvalueindex(1));
-// 	// lua_pushvalue(L, 2);
-// 	// lua_pushcclosure(L, call_cdp, 2);
-// 	return 1;
-// }
-
 static int path_index(lua_State* L) {
     const char* key = luaL_checkstring(L, 2);
     int type = luaL_getmetafield(L, 1, "path");
