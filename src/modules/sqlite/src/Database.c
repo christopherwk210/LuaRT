@@ -88,10 +88,8 @@ static int push_row(lua_State *L, Database *db, sqlite3_stmt *stmt, int count) {
 				case SQLITE_TEXT:		lua_pushwstring(L, sqlite3_column_text16(stmt, i)); break;
 				default:				lua_pushlstring(L, sqlite3_column_blob(stmt, i), sqlite3_column_bytes(stmt, i));
 			}
-			printf("%ls = %s\n", name, lua_tostring(L, -1));
 			lua_rawset(L, -3);
 		}
-
 		return 1;
 	}
 	CHECK(db, sqlite3_finalize(stmt));
