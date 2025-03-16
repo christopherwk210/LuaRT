@@ -22,7 +22,7 @@
 #---- Platform selection, leave blank to autodetect
 #---- x86 for 32bits lua54.dll, liblua54.a and executables
 #---- x64 for 64bits lua54.dll, liblua54.a and executables
-VERBOSE= >nul 2>&1
+VERBOSE= 2>&1 >nul
 
 PLATFORM=
 
@@ -50,7 +50,7 @@ _ARCH = x86
 #---- LuaRT version
 LUART_MAJOR= 1
 LUART_MINOR= 9
-LUART_RELEASE= 0 
+LUART_RELEASE= 5 
 !if "$(VERSION)" == ""
 VERSION=$(LUART_MAJOR).$(LUART_MINOR).$(LUART_RELEASE)
 !endif
@@ -62,8 +62,8 @@ LDFLAGS= /nologo /DEBUG /NODEFAULTLIB:msvcrt
 VERBOSE= 
 PROGRESS=
 !else
-CFLAGS = /nologo /D_WIN32_WINNT=0x0603 /DLUA_COMPAT_5_3 /DLUA_ARCH=\"$(_ARCH)\" /DZIP_SHARED /DZIP_BUILD_SHARED /DLUART_MINOR=$(LUART_MINOR) /DLUART_MAJOR=$(LUART_MAJOR) /DLUART_RELEASE=$(LUART_RELEASE) /I"..\..\include" /I"." /MD /Gy /GF /Oi /O2 /GA
-LDFLAGS= /nologo /OPT:REF /OPT:ICF
+CFLAGS = /nologo /D_WIN32_WINNT=0x0603 /DLUA_COMPAT_5_3 /DLUA_ARCH=\"$(_ARCH)\" /DZIP_SHARED /DZIP_BUILD_SHARED /DLUART_MINOR=$(LUART_MINOR) /DLUART_MAJOR=$(LUART_MAJOR) /DLUART_RELEASE=$(LUART_RELEASE) /I"..\..\include" /I"." /MD /Gy /GF /Oi /O1 /GA
+LDFLAGS= /nologo /OPT:REF /OPT:ICF /LTCG
 PROGRESS= "■"
 !endif
 
@@ -77,7 +77,7 @@ STATIC_LIBS=ole32.lib comctl32.lib crypt32.lib credui.lib wininet.lib ws2_32.lib
 #---- Source files
 LUA_A=		lua54.dll
 LUA_O=		lua\lapi.obj lua\lcode.obj lua\lctype.obj lua\ldebug.obj lua\ldo.obj lua\ldump.obj lua\lfunc.obj lua\lgc.obj lua\llex.obj lua\lmem.obj lua\lobject.obj lua\lopcodes.obj lua\lparser.obj lua\lstate.obj lua\lstring.obj lua\ltable.obj lua\ltm.obj lua\lundump.obj lua\lvm.obj lua\lzio.obj	
-LIB_O=		lua\lauxlib.obj lua\lbaselib.obj lua\lcorolib.obj lua\ldblib.obj lua\lmathlib.obj lua\loadlib.obj lua\ltablib.obj string\string.obj string\lstrlib.obj sys\sys.obj console\console.obj lua\liolib.obj lua\loslib.obj lua\lutf8lib.obj compression\compression.obj compression\Zip.obj compression\lib\miniz.obj compression\lib\zip.obj lrtapi.obj lrtobject.obj sys\Date.obj sys\File.obj sys\Pipe.obj sys\Directory.obj sys\Buffer.obj sys\Com.obj lembed.obj sys\async.obj sys\Task.obj
+LIB_O=		lua\lauxlib.obj lua\lbaselib.obj lua\lcorolib.obj lua\ldblib.obj lua\lmathlib.obj lua\loadlib.obj lua\ltablib.obj string\string.obj string\lstrlib.obj sys\sys.obj console\console.obj lua\liolib.obj lua\loslib.obj lua\lutf8lib.obj compression\compression.obj compression\Zip.obj compression\lib\zip.obj lrtapi.obj lrtobject.obj sys\Date.obj sys\File.obj sys\Pipe.obj sys\Directory.obj sys\Buffer.obj sys\Com.obj lembed.obj sys\async.obj sys\Task.obj
 UI_O=  		ui\ui.obj ui\Widget.obj ui\Entry.obj ui\Items.obj ui\Menu.obj ui\Window.obj ui\Darkmode.obj ui\DragDrop.obj
 
 BASE_O= 	$(LUA_O) $(LIB_O)
@@ -206,7 +206,7 @@ rtc: toolchain luart-static ..\..\tools\rtc\src\rtc.lua
 	@rc /fo .\\resource.res $(DEFINES_RES) /r /v /d RTC /i "lua/" resources/resource.rc >nul 2>&1
 	@echo|set /p dummy=$(PROGRESS)
 	@$(CC) $(CFLAGS) /D RTC luart.c /link $(LDFLAGS) resource.res $(BASE_O) $(STATIC_O) $(STATIC_LIBS) /OUT:luart.exe $(VERBOSE)
-	@luart.exe ..\..\tools\rtc\src\rtc.lua ..\..\tools\rtc\src\rtc.lua -o rtc.exe ..\..\tools\rtc\src  $(VERBOSE)
+	@luart.exe ..\..\tools\rtc\src\rtc.lua ..\..\tools\rtc\src\rtc.lua -o rtc.exe ..\..\tools\rtc\src $(VERBOSE)
 	@echo|set /p dummy=$(PROGRESS)
 	@rc /fo .\\resource.res $(DEFINES_RES) /r /v /d RTC /d RTWIN /i "lua/" resources/resource.rc >nul 2>&1
 	@echo|set /p dummy=$(PROGRESS)
@@ -255,7 +255,7 @@ buildtools: rtc
 	@-copy /Y lua54.dll ..\..\tools\LuaRT-Studio\bin\lua54.dll >nul	
 	@echo|set /p dummy=$(PROGRESS)
 	@-$(RM) lua54.dll >nul 2>&1
-	@rd ..\..\tools\LuaRT-Studio\examples /s /q 
+	-@rd ..\..\tools\LuaRT-Studio\examples /s /q 
 	@xcopy ..\..\examples ..\..\tools\LuaRT-Studio\examples\ /s /e /y >nul
 	@echo|set /p dummy=$(PROGRESS)
 	@xcopy ..\..\modules ..\..\tools\LuaRT-Studio\modules\ /s /e /y >nul
@@ -290,6 +290,7 @@ clean: utf8
 	@-$(RM) $(LUART_T) >nul 2>&1
 	@-$(RM) $(LUAWRT_T)  >nul 2>&1
 	@-$(RM) $(UI_O) >nul 2>&1
+	@-$(RM) compression\lib\*.obj >nul 2>&1
 	@echo ✓
 	@cd ..\..\tools\RTBuilder
 	@nmake.bat clean >nul 2>&1
