@@ -281,26 +281,27 @@ LUA_METHOD(Webview, restorehost) {
 static void printsettingsFromTable(lua_State *L, ICoreWebView2PrintSettings *printSettings) {
 	ComPtr<ICoreWebView2PrintSettings2> printSettings2 = nullptr;
 
-	luaL_checktype(L, 2, LUA_TTABLE);
-	if (lua_getfield(L, 2, "orientation")) 
-		printSettings->put_Orientation(strcmp(lua_tostring(L, -1), "landscape") == 0 ? COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE : COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT);
-	if (lua_getfield(L, 2, "pageHeight"))
-		printSettings->put_PageHeight(lua_tonumber(L, -1));
-	if (lua_getfield(L, 2, "pageWidth"))
-		printSettings->put_PageWidth(lua_tonumber(L, -1));
-	if (lua_getfield(L, 2, "header"))
-		printSettings->put_ShouldPrintHeaderAndFooter(lua_toboolean(L, -1));
-	if (lua_getfield(L, 2, "backgrounds"))
-		printSettings->put_ShouldPrintBackgrounds(lua_toboolean(L, -1));
-	if (SUCCEEDED(printSettings->QueryInterface(IID_PPV_ARGS(&printSettings2)))) {
-		if (lua_getfield(L, 2, "colorMode"))
-			printSettings2->put_ColorMode(strcmp(lua_tostring(L, -1), "grayscale") == 0 ? COREWEBVIEW2_PRINT_COLOR_MODE_GRAYSCALE : COREWEBVIEW2_PRINT_COLOR_MODE_COLOR);
-		if (lua_getfield(L, 2, "copies")) {
-			lua_Integer n = lua_tointeger(L, -1);
-			printSettings2->put_Copies(n == 0 ? 1 : n);
+	if (lua_type(L, 2) == LUA_TTABLE) { 
+		if (lua_getfield(L, 2, "orientation")) 
+			printSettings->put_Orientation(strcmp(lua_tostring(L, -1), "landscape") == 0 ? COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE : COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT);
+		if (lua_getfield(L, 2, "pageHeight"))
+			printSettings->put_PageHeight(lua_tonumber(L, -1));
+		if (lua_getfield(L, 2, "pageWidth"))
+			printSettings->put_PageWidth(lua_tonumber(L, -1));
+		if (lua_getfield(L, 2, "header"))
+			printSettings->put_ShouldPrintHeaderAndFooter(lua_toboolean(L, -1));
+		if (lua_getfield(L, 2, "backgrounds"))
+			printSettings->put_ShouldPrintBackgrounds(lua_toboolean(L, -1));
+		if (SUCCEEDED(printSettings->QueryInterface(IID_PPV_ARGS(&printSettings2)))) {
+			if (lua_getfield(L, 2, "colorMode"))
+				printSettings2->put_ColorMode(strcmp(lua_tostring(L, -1), "grayscale") == 0 ? COREWEBVIEW2_PRINT_COLOR_MODE_GRAYSCALE : COREWEBVIEW2_PRINT_COLOR_MODE_COLOR);
+			if (lua_getfield(L, 2, "copies")) {
+				lua_Integer n = lua_tointeger(L, -1);
+				printSettings2->put_Copies(n == 0 ? 1 : n);
+			}
+			if (lua_getfield(L, 2, "scaleFactor"))
+				printSettings2->put_ScaleFactor(lua_tonumber(L, -1));
 		}
-		if (lua_getfield(L, 2, "scaleFactor"))
-			printSettings2->put_ScaleFactor(lua_tonumber(L, -1));
 	}
 }
 
@@ -321,7 +322,6 @@ LUA_METHOD(Webview, print) {
 					printsettingsFromTable(L, printSettings.Get());
 					lua_pushboolean(L, false);
 					TaskCallback *ExecCB = new TaskCallback();
-					lua_pushboolean(L, false);
 					if (SUCCEEDED(wv->webview3->Print(printSettings.Get(), static_cast<ICoreWebView2PrintCompletedHandler *>(ExecCB)))) {
 						lua_pushtask(L, EvalTaskContinue, ExecCB, NULL);
 						lua_pushvalue(L, -1);
