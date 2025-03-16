@@ -91,8 +91,10 @@ static int pipe_read(lua_State *L, HANDLE h) {
 static int PipeReadTaskContinue(lua_State* L, int status, lua_KContext ctx) {	
 	Pipe *p = (Pipe*)ctx;
 	int count = 0;
-
-	if (!p->out_read)
+	DWORD exitCode = 0;
+    
+	GetExitCodeProcess(p->pi.hProcess, &exitCode);
+	if ((exitCode != STILL_ACTIVE) || !p->out_read)
 		return 0;
 	if (p->delay <= GetTickCount()) {
 		count = pipe_read(L, p->out_read);
