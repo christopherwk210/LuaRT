@@ -137,6 +137,7 @@ int resume_task(lua_State *L, Task *t, int args) {
 
 //-------- Task scheduler
 int update_tasks(lua_State *L) {
+	static int tosleep = 0;
 
 	if (lua_update)
 		lua_update(L);
@@ -176,6 +177,10 @@ int update_tasks(lua_State *L) {
 					return nresults;			
 			}		
 		}
+	}
+	if (++tosleep > 100) {
+		Sleep(1);
+		tosleep = 0;
 	}
 	return 0;
 }
