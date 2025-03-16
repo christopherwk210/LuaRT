@@ -1,3 +1,55 @@
+## LuaRT v1.9.5 (March 23 2025)
+
+#### Highlights 
+- Bugfix release for LuaRT 1.9.0 with some user requested updates
+- Completely rewritten Webview widget, with ability to set options, Chrome DevTools Protocol and printing support
+- Updated dependencies for less bugs (miniaudio, miniz and Kuba zip library)
+
+#### rtc
+- Updated: `rtc` now supports submodules linking and requiring from the generated executable
+
+#### QuickRT
+- Fixed: Indentation for structured statements works now as expected
+
+#### `C` module
+- New: `C.Library()` now can load embedded DLL files
+- Fixed: `size_t` should now be correctly handled
+- Fixed: `Struct` can now be passed as C function argument by value
+- Fixed: C functions can now return `lightuserdata` to be used as `Struct` contructor parameter
+
+#### `webview` module
+- New `Webview.cdp` property for Chrome DevTool Protocol support
+- New `Webview.print()` and `Webview.printPDF()` methods to print Webview content
+- Updated: `Webview.eval()` now returns two values : a `boolean` indicating if the operation succeeded and the result as a JSON `string`
+- Updated: Full rewrite of Webview widget
+- Updated: Webview constructor now takes a table as second argument instead of a string, to set `url` and `options`
+
+#### `sys` module
+- Updated: `Pipe.read()` now take an optional `delay` parameter to wait for before starting reading
+- Updated: String conversion from `Buffer` now provides the full buffer (with its entire size) as a string
+- Fixed: `Buffer` won't over-read anymore with "base64" encoding (Fixes #242)
+- Fixed: `Pipe:read()` won't enter an infinite loop anymore if the process is terminated, but will return `nil` instead (Fixes #241)
+
+#### `compression` module
+- Updated: miniz updated to 3.0.2 with lots of bug fixes
+- Updated: kuba zip library to 0.3.3 with lots of bug fixes
+- Zip compression/decompression is now less prone to bugs
+
+#### `json` module
+- Fixed: removed debugging console output in `Database.query()` and `Database.exec()`
+
+#### `sqlite` module
+- Fixed : module functions `query()` and `exec()` now set column values correctly (Fixes #234)
+
+#### `audio` module
+- Updated: audio module now uses latest miniaudio v0.11.22
+- Updated: `record.start()` won't throw an error anymore by returning a `boolean` value indicating if the operation succeeded or not
+
+#### `ui` module
+- Fixed: `ui` module won't consume too much CPU time now (Fixes #243)
+- New: `Window.startmoving()` method to initiate a drag and move operation (even for `"raw"` windows)
+
+
 ## LuaRT v1.9.0 (January 27 2025)
 
 #### Highlights 
