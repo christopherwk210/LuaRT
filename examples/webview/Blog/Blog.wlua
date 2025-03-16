@@ -7,7 +7,7 @@ require "webview"
 
 local win = ui.Window("Blog application using Tailwind CSS - Powered by LuaRT", "fixed", 414, 776)
 
-local wv = ui.Webview(win, "file:///"..file)
+local wv = ui.Webview(win, { url = "file:///"..file })
 wv.align = "all"
 
 function wv:onReady()

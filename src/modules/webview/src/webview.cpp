@@ -18,6 +18,10 @@
 #include <windows.h>
 #include "handler.h"
 
+#include <wrl.h>
+
+using namespace Microsoft::WRL;
+
 
 //--- Webview type
 static luart_type TWebview;
@@ -33,77 +37,104 @@ LRESULT CALLBACK WebviewProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 }
 
 //------------------------------------ Webview constructor
+static const char *get_argstrfield(lua_State *L, const char *field, const char *defstr) {
+	switch(lua_getfield(L, 3, field)) {
+		case LUA_TSTRING: 	return lua_tostring(L, -1);
+		case LUA_TNIL:		return defstr;
+	}
+	luaL_error(L, "bad '%s' field type (expecting string, found %s)", field, luaL_typename(L, -1));
+	return NULL;
+}
+
 LUA_CONSTRUCTOR(Webview)
 {   
     Widget *w, *wp;
 	double dpi;
 	BOOL isdark;
+    WebviewHandler *wv;
+	int i = lua_istable(L, 3) ? 4 : 3;
     HWND h, hParent = (HWND)lua_widgetinitialize(L, &wp, &dpi, &isdark);     
-    WebviewHandler *wv = new WebviewHandler;
-    h = CreateWindowExW(0, L"Window", NULL, WS_VISIBLE | WS_CHILD, (int)luaL_optinteger(L, 4, 0)*dpi, (int)luaL_optinteger(L, 5, 0)*dpi, (int)luaL_optinteger(L, 6, 320)*dpi, (int)luaL_optinteger(L, 7, 240)*dpi, hParent, 0, GetModuleHandle(NULL),  NULL);
-	wv->CreateWebview(h, luaL_checkstring(L, 3));
+    h = CreateWindowExW(0, L"Window", NULL, WS_VISIBLE | WS_CHILD, (int)luaL_optinteger(L, i, 0)*dpi, (int)luaL_optinteger(L, i+1, 0)*dpi, (int)luaL_optinteger(L, i+2, 320)*dpi, (int)luaL_optinteger(L, i+3, 240)*dpi, hParent, 0, GetModuleHandle(NULL),  NULL);
+	
+	wv = i == 3 ? new WebviewHandler(h, "", NULL) : new WebviewHandler(h, get_argstrfield(L, "url", ""), get_argstrfield(L, "options", ""));
     w = lua_widgetconstructor(L, h, TWebview, wp, (SUBCLASSPROC)WebviewProc);
     w->user = wv;
 	wv->archive = (zip_t *)luaL_embedopen(L);
     return 1;
 }
 
+wchar_t *ErrorFromHR(HRESULT errorCode) {
+	wchar_t* errorMsg = nullptr;
+	DWORD formatResult = FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPWSTR>(&errorMsg), 0, nullptr);
+	errorMsg = (formatResult != 0 && errorMsg) ? errorMsg : nullptr;							
+	return errorMsg;
+}
+
 static int EvalTaskContinue(lua_State* L, int status, lua_KContext ctx) {
-    ExecuteScriptCompletedCallback *cb = (ExecuteScriptCompletedCallback *)ctx;
+    TaskCallback *cb = (TaskCallback *)ctx;
     
     if (cb->done) {
-        lua_pushwstring(L, cb->result);
+		lua_pushboolean(L, SUCCEEDED(cb->hr));
+		if (!cb->result && FAILED(cb->hr)) {
+			wchar_t *err = ErrorFromHR(cb->hr);
+			lua_pushwstring(L, err ? err : L"Unknown error");
+			if (err)
+				LocalFree(err);
+		} else if (cb->result)
+			lua_pushwstring(L, cb->result);
 		delete cb;
-        return 1;
+        return cb->result ? 2 : 1;
     }
     return lua_yieldk(L, 0, ctx, EvalTaskContinue);
 }
 
 LUA_METHOD(Webview, eval) {
    	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
-	wchar_t *js = lua_towstring(L, 2);
-	ExecuteScriptCompletedCallback *ExecCB = new ExecuteScriptCompletedCallback();
-  	if (wv->webview2)
-		wv->webview2->lpVtbl->ExecuteScript(wv->webview2, js, ExecCB); 
-	lua_pushtask(L, EvalTaskContinue, ExecCB, NULL);
-	lua_pushvalue(L, -1);
-	lua_call(L, 0, 0); 
-	free(js);
+	lua_pushboolean(L, false);
+  	if (wv->webview2) {
+		wchar_t *js = lua_towstring(L, 2);
+		TaskCallback *ExecCB = new TaskCallback();
+		wv->webview2->ExecuteScript(js, ExecCB); 
+		lua_pushtask(L, EvalTaskContinue, ExecCB, NULL);
+		lua_pushvalue(L, -1);
+		lua_call(L, 0, 0); 
+		free(js);
+	}
 	return 1;
 }
 
 LUA_METHOD(Webview, reload) {
 	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	if (wv->webview2)
-		wv->webview2->lpVtbl->Reload(wv->webview2);
+		wv->webview2->Reload();
 	return 0;
 }
 
 LUA_METHOD(Webview, goback) {
 	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	if (wv->webview2)
-		wv->webview2->lpVtbl->GoBack(wv->webview2);
+		wv->webview2->GoBack();
 	return 0;
 }
 
 LUA_METHOD(Webview, goforward) {
 	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	if (wv->webview2)
-		wv->webview2->lpVtbl->GoForward(wv->webview2);
+		wv->webview2->GoForward();
 	return 0;
 }
 
 LUA_METHOD(Webview, stop) {
    	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->webview2)
-    	wv->webview2->lpVtbl->Stop(wv->webview2);
+    	wv->webview2->Stop();
   	return 0;
 }
 
 LUA_METHOD(Webview, opendevtools) {
    	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->webview2)
-    	wv->webview2->lpVtbl->OpenDevToolsWindow(wv->webview2);
+    	wv->webview2->OpenDevToolsWindow();
   	return 0;
 }
 
@@ -111,7 +142,10 @@ LUA_METHOD(Webview, addinitscript) {
    	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->webview3) {
     	wchar_t *msg = lua_towstring(L, 2);
-    	wv->webview3->lpVtbl->AddScriptToExecuteOnDocumentCreated(wv->webview3, msg, wv);
+    	wv->webview3->AddScriptToExecuteOnDocumentCreated(msg, Callback<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler>(
+						[](HRESULT error, PCWSTR i) -> HRESULT {
+							return S_OK;
+					}).Get());
     	free(msg);
   	}
   	return 0;
@@ -122,7 +156,7 @@ LUA_METHOD(Webview, postmessage) {
 	int result = FALSE;
   	if (wv->webview2) {
     	wchar_t *msg = lua_towstring(L, 2);
-    	result = SUCCEEDED(wv->webview2->lpVtbl->PostWebMessageAsJson(wv->webview2, msg));    
+    	result = SUCCEEDED(wv->webview2->PostWebMessageAsJson(msg));    
     	free(msg);
   	}
   	lua_pushboolean(L, result);
@@ -134,11 +168,96 @@ LUA_METHOD(Webview, loadstring) {
 	int result = FALSE;
   	if (wv->webview2) {
     	wchar_t *str = toUTF16(lua_tostring(L, 2));
-    	result = SUCCEEDED(wv->webview2->lpVtbl->NavigateToString(wv->webview2, str));
+    	result = SUCCEEDED(wv->webview2->NavigateToString( str));
     	GlobalFree(str);
   } 
   lua_pushboolean(L, result);
   return 1;
+}
+
+LUA_METHOD(call, cdp) {
+   	WebviewHandler *wv;
+	
+	luaL_getmetafield(L, 1, "wv");
+	wv = static_cast<WebviewHandler*>(lua_self(L, -1, Widget)->user);
+
+  	if (wv->webview2) {
+		luaL_getmetafield(L, 1, "path");
+    	wchar_t *method = toUTF16(lua_tostring(L, -1));
+    	wchar_t *JSON = toUTF16(luaL_checkstring(L, 2));
+		TaskCallback *ExecCB = new TaskCallback();
+
+		lua_pushboolean(L, false);
+		if (SUCCEEDED(wv->webview2->CallDevToolsProtocolMethod(method, JSON, static_cast<ICoreWebView2CallDevToolsProtocolMethodCompletedHandler *>(ExecCB)))) {
+			lua_pushtask(L, EvalTaskContinue, ExecCB, NULL);
+			lua_pushvalue(L, -1);
+			lua_call(L, 0, 0); 
+		} else
+			delete ExecCB;
+		GlobalFree(method);
+		GlobalFree(JSON);
+  } 
+  return 1;
+}
+
+// LUA_METHOD(index, cdp) {
+// 	luaL_checkstring(L, 2);
+// 	lua_getmetatable(L, 1);
+// 	if (lua_getfield(L, -1, "__cdp")) {
+// 		lua_pushstring(L, ".");
+// 		lua_pushvalue(L, 2);
+// 		lua_concat(L, 3);
+// 	} else {
+// 		lua_createtable(L, 0, 2);
+
+// 	}
+
+// 	// lua_createtable(L, 0, 0);
+// 	// lua_createtable(L, 0, 1);
+// 	// lua_pushvalue(L, lua_upvalueindex(1));
+// 	// lua_pushvalue(L, 2);
+// 	// lua_pushcclosure(L, call_cdp, 2);
+// 	return 1;
+// }
+
+static int path_index(lua_State* L) {
+    const char* key = luaL_checkstring(L, 2);
+    int type = luaL_getmetafield(L, 1, "path");
+    const char* current = type == LUA_TNIL ? "" : lua_tostring(L, -1);
+    lua_pop(L, 1);
+    
+    size_t current_len = strlen(current);
+    size_t key_len = strlen(key);
+    size_t new_len = current_len + key_len + (current_len > 0 ? 1 : 0);
+    char* new_path = (char*)malloc(new_len + 1);   
+
+    if (current_len > 0)
+        sprintf(new_path, "%s.%s", current, key);
+    else
+        strcpy(new_path, key);
+    
+	lua_getmetatable(L, 1);
+    lua_pushstring(L, new_path);
+    lua_setfield(L, -2, "path");
+	lua_pop(L, 1);
+    free(new_path);
+
+    lua_pushvalue(L, 1);
+    return 1;
+}
+
+LUA_PROPERTY_GET(Webview, cdp) {
+	lua_createtable(L, 0, 2);
+    if (luaL_newmetatable(L, "path_mt")) {
+        lua_pushcfunction(L, path_index);
+        lua_setfield(L, -2, "__index");
+        lua_pushcfunction(L, call_cdp);
+        lua_setfield(L, -2, "__call");
+		lua_pushvalue(L, 1);
+		lua_setfield(L, -2, "wv");
+    }
+    lua_setmetatable(L, -2);
+	return 1;
 }
 
 LUA_PROPERTY_SET(Webview, url) {
@@ -146,7 +265,7 @@ LUA_PROPERTY_SET(Webview, url) {
 	int result = FALSE;
   	if (wv->webview2) {
     	wchar_t *uri = toUTF16(lua_tostring(L, 2));
-    	result = SUCCEEDED(wv->webview2->lpVtbl->Navigate(wv->webview2, uri));
+    	result = SUCCEEDED(wv->webview2->Navigate( uri));
     	GlobalFree(uri);
   } 
   lua_pushboolean(L, result);
@@ -159,7 +278,7 @@ LUA_METHOD(Webview, hostfromfolder) {
 	if (wv->webview3) {
 		wchar_t *host = lua_towstring(L, 2);
 		wchar_t *path = lua_towstring(L, 3);
-		result = SUCCEEDED(wv->webview3->lpVtbl->SetVirtualHostNameToFolderMapping(wv->webview3, host, path, COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW));
+		result = SUCCEEDED(wv->webview3->SetVirtualHostNameToFolderMapping(host, path, COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW));
 		free(path);
 		free(host);
 	}
@@ -172,10 +291,104 @@ LUA_METHOD(Webview, restorehost) {
 	int result = FALSE;
 	if (wv->webview3) {
 		wchar_t *host = lua_towstring(L, 2);
-		result = SUCCEEDED(wv->webview3->lpVtbl->ClearVirtualHostNameToFolderMapping(wv->webview3, host));
+		result = SUCCEEDED(wv->webview3->ClearVirtualHostNameToFolderMapping(host));
 		free(host);
 	}
 	lua_pushboolean(L, result);
+	return 1;
+}
+
+static void printsettingsFromTable(lua_State *L, ICoreWebView2PrintSettings *printSettings) {
+	ComPtr<ICoreWebView2PrintSettings2> printSettings2 = nullptr;
+
+	luaL_checktype(L, 2, LUA_TTABLE);
+	if (lua_getfield(L, 2, "orientation")) 
+		printSettings->put_Orientation(strcmp(lua_tostring(L, -1), "landscape") == 0 ? COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE : COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT);
+	if (lua_getfield(L, 2, "pageHeight"))
+		printSettings->put_PageHeight(lua_tonumber(L, -1));
+	if (lua_getfield(L, 2, "pageWidth"))
+		printSettings->put_PageWidth(lua_tonumber(L, -1));
+	if (lua_getfield(L, 2, "header"))
+		printSettings->put_ShouldPrintHeaderAndFooter(lua_toboolean(L, -1));
+	if (lua_getfield(L, 2, "backgrounds"))
+		printSettings->put_ShouldPrintBackgrounds(lua_toboolean(L, -1));
+	if (SUCCEEDED(printSettings->QueryInterface(IID_PPV_ARGS(&printSettings2)))) {
+		if (lua_getfield(L, 2, "colorMode"))
+			printSettings2->put_ColorMode(strcmp(lua_tostring(L, -1), "grayscale") == 0 ? COREWEBVIEW2_PRINT_COLOR_MODE_GRAYSCALE : COREWEBVIEW2_PRINT_COLOR_MODE_COLOR);
+		if (lua_getfield(L, 2, "copies")) {
+			lua_Integer n = lua_tointeger(L, -1);
+			printSettings2->put_Copies(n == 0 ? 1 : n);
+		}
+		if (lua_getfield(L, 2, "scaleFactor"))
+			printSettings2->put_ScaleFactor(lua_tonumber(L, -1));
+	}
+}
+
+LUA_METHOD(Webview, print) {
+  	ICoreWebView2_16 *webView2_16;
+  	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
+
+	if (lua_gettop(L) > 1) {
+		ComPtr<ICoreWebView2PrintSettings> printSettings = nullptr;
+		ComPtr<ICoreWebView2Environment6> env6 = nullptr;
+		ComPtr<ICoreWebView2Environment> env = nullptr;
+		HWND h = wv->hwnd;
+		
+		luaL_checktype(L, 2, LUA_TTABLE);
+		if (SUCCEEDED(wv->webview3->get_Environment(&env))) {
+			if (SUCCEEDED(env->QueryInterface(IID_PPV_ARGS(&env6)))) {
+				if (SUCCEEDED(env6->CreatePrintSettings(&printSettings))) {
+					printsettingsFromTable(L, printSettings.Get());
+					lua_pushboolean(L, false);
+					TaskCallback *ExecCB = new TaskCallback();
+					lua_pushboolean(L, false);
+					if (SUCCEEDED(wv->webview3->Print(printSettings.Get(), static_cast<ICoreWebView2PrintCompletedHandler *>(ExecCB)))) {
+						lua_pushtask(L, EvalTaskContinue, ExecCB, NULL);
+						lua_pushvalue(L, -1);
+						lua_call(L, 0, 0); 
+					} else delete ExecCB;
+				}
+			}
+		}
+	} else lua_pushboolean(L, SUCCEEDED(wv->webview3->ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_BROWSER)));
+	return 1;
+}
+
+LUA_METHOD(Webview, printPDF) {
+	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
+	ComPtr<ICoreWebView2PrintSettings> printSettings = nullptr;
+	ComPtr<ICoreWebView2Environment6> env6 = nullptr;
+	ComPtr<ICoreWebView2Environment> env = nullptr;
+	std::wstring fname;
+	HWND h = wv->hwnd;
+
+	luaL_checktype(L, 2, LUA_TTABLE);
+	if (SUCCEEDED(wv->webview3->get_Environment(&env))) {
+		if (SUCCEEDED(env->QueryInterface(IID_PPV_ARGS(&env6)))) {
+			if (SUCCEEDED(env6->CreatePrintSettings(&printSettings))) {
+				printsettingsFromTable(L, printSettings.Get());
+				if (!lua_getfield(L, 2, "file"))
+					luaL_error(L, "'file' key not found in the provided table");
+				fname = luaL_checkFilename(L, -1);
+				size_t pos = fname.find_last_of(L"\\");
+				if (!(pos != std::wstring::npos && (pos > 0))) {
+					DWORD bufferSize = GetCurrentDirectoryW(0, nullptr);
+					std::wstring currentDirectory(bufferSize, L'\0');
+					DWORD result = GetCurrentDirectoryW(bufferSize, &currentDirectory[0]);
+					currentDirectory.resize(result);
+					fname = currentDirectory + L"\\" + fname;
+				}
+				lua_pushboolean(L, false);
+				TaskCallback *ExecCB = new TaskCallback();
+				lua_pushboolean(L, false);
+				if (SUCCEEDED(wv->webview3->PrintToPdf(fname.c_str(), printSettings.Get(), static_cast<ICoreWebView2PrintToPdfCompletedHandler *>(ExecCB)))) {
+					lua_pushtask(L, EvalTaskContinue, ExecCB, NULL);
+					lua_pushvalue(L, -1);
+					lua_call(L, 0, 0); 
+				} else delete ExecCB;
+			}
+		}
+	}
 	return 1;
 }
 
@@ -183,7 +396,7 @@ LUA_PROPERTY_GET(Webview, zoom) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	double zoom = 1;
   	if (wv->controller)
-    	wv->controller->lpVtbl->get_ZoomFactor(wv->controller, &zoom);
+    	wv->controller->get_ZoomFactor(&zoom);
   	lua_pushnumber(L, zoom);
   	return 1;
 }
@@ -192,7 +405,7 @@ LUA_PROPERTY_SET(Webview, zoom) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	double zoom = 1;
   	if (wv->controller)
-    	wv->controller->lpVtbl->put_ZoomFactor(wv->controller, (double)luaL_checknumber(L, 2));
+    	wv->controller->put_ZoomFactor((double)luaL_checknumber(L, 2));
   	return 0;
 }
 
@@ -200,7 +413,7 @@ LUA_PROPERTY_GET(Webview, cangoback) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	int result = false;
   	if (wv->webview2)
-		wv->webview2->lpVtbl->get_CanGoBack(wv->webview2, &result);
+		wv->webview2->get_CanGoBack(&result);
 	lua_pushboolean(L, result);
 	return 1;
 }
@@ -209,7 +422,7 @@ LUA_PROPERTY_GET(Webview, cangoforward) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	int result = false;
   	if (wv->webview2)
-		wv->webview2->lpVtbl->get_CanGoForward(wv->webview2, &result);
+		wv->webview2->get_CanGoForward(&result);
 	lua_pushboolean(L, result);
 	return 1;
 }
@@ -218,7 +431,7 @@ LUA_PROPERTY_GET(Webview, url) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->webview2) {
 		wchar_t *result = NULL;
-		wv->webview2->lpVtbl->get_Source(wv->webview2, &result);
+		wv->webview2->get_Source(&result);
 		lua_pushwstring(L, result);
 		CoTaskMemFree(result);
 	} else lua_pushnil(L);
@@ -229,7 +442,7 @@ LUA_PROPERTY_GET(Webview, title) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->webview2) {
 		wchar_t *result;
-		wv->webview2->lpVtbl->get_DocumentTitle(wv->webview2, &result);
+		wv->webview2->get_DocumentTitle(&result);
 		lua_pushwstring(L, result);
 		CoTaskMemFree(result);
 	} else lua_pushnil(L);
@@ -240,7 +453,7 @@ LUA_PROPERTY_GET(Webview, devtools) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	int result = FALSE;
   	if (wv->settings)
-   		wv->settings->lpVtbl->get_AreDevToolsEnabled(wv->settings, &result);
+   		wv->settings->get_AreDevToolsEnabled(&result);
 	lua_pushboolean(L, result);
 	return 1;
 }
@@ -248,7 +461,7 @@ LUA_PROPERTY_GET(Webview, devtools) {
 LUA_PROPERTY_SET(Webview, devtools) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->settings)
-   		wv->settings->lpVtbl->put_AreDevToolsEnabled(wv->settings, lua_toboolean(L, 2));
+   		wv->settings->put_AreDevToolsEnabled(lua_toboolean(L, 2));
 	return 0;
 }
 
@@ -256,7 +469,7 @@ LUA_PROPERTY_GET(Webview, acceleratorkeys) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	int result = FALSE;
   	if (wv->settings)
-   		wv->settings->lpVtbl->get_AreBrowserAcceleratorKeysEnabled(wv->settings, &result);
+   		wv->settings->get_AreBrowserAcceleratorKeysEnabled(&result);
 	lua_pushboolean(L, result);
 	return 1;
 }
@@ -264,7 +477,7 @@ LUA_PROPERTY_GET(Webview, acceleratorkeys) {
 LUA_PROPERTY_SET(Webview, acceleratorkeys) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->settings)
-   		wv->settings->lpVtbl->put_AreBrowserAcceleratorKeysEnabled(wv->settings, lua_toboolean(L, 2));
+   		wv->settings->put_AreBrowserAcceleratorKeysEnabled(lua_toboolean(L, 2));
 	return 0;
 }
 
@@ -272,7 +485,7 @@ LUA_PROPERTY_GET(Webview, contextmenu) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	int result = FALSE;
   	if (wv->settings)
-   		wv->settings->lpVtbl->get_AreDefaultContextMenusEnabled(wv->settings, &result);
+   		wv->settings->get_AreDefaultContextMenusEnabled(&result);
 	lua_pushboolean(L, result);
 	return 1;
 }
@@ -280,7 +493,7 @@ LUA_PROPERTY_GET(Webview, contextmenu) {
 LUA_PROPERTY_SET(Webview, contextmenu) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->settings)
-   		wv->settings->lpVtbl->put_AreDefaultContextMenusEnabled(wv->settings, lua_toboolean(L, 2));
+   		wv->settings->put_AreDefaultContextMenusEnabled(lua_toboolean(L, 2));
 	return 0;
 }
 
@@ -288,7 +501,7 @@ LUA_PROPERTY_GET(Webview, statusbar) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	int result = FALSE;
   	if (wv->settings)
-   		wv->settings->lpVtbl->get_IsStatusBarEnabled(wv->settings, &result);
+   		wv->settings->get_IsStatusBarEnabled(&result);
 	lua_pushboolean(L, result);
 	return 1;
 }
@@ -296,7 +509,7 @@ LUA_PROPERTY_GET(Webview, statusbar) {
 LUA_PROPERTY_SET(Webview, statusbar) {
   	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
   	if (wv->settings)
-   		wv->settings->lpVtbl->put_IsStatusBarEnabled(wv->settings, lua_toboolean(L, 2));
+   		wv->settings->put_IsStatusBarEnabled(lua_toboolean(L, 2));
 	return 0;
 }
 
@@ -304,7 +517,7 @@ LUA_PROPERTY_GET(Webview, useragent) {
 	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
 	if (wv->settings) {
 	wchar_t *result = NULL;
-	wv->settings->lpVtbl->get_UserAgent(wv->settings, &result);
+	wv->settings->get_UserAgent(&result);
 	lua_pushwstring(L, result);
 	CoTaskMemFree(result);
 	} else lua_pushnil(L);
@@ -316,7 +529,7 @@ LUA_PROPERTY_SET(Webview, useragent) {
 	int result = FALSE;
 	if (wv->settings) {
 		wchar_t *ua = toUTF16(lua_tostring(L, 2));
-		result = SUCCEEDED(wv->settings->lpVtbl->put_UserAgent(wv->settings, ua));
+		result = SUCCEEDED(wv->settings->put_UserAgent(ua));
 		GlobalFree(ua);
 	}
 	lua_pushboolean(L, result);
@@ -342,6 +555,9 @@ OBJECT_MEMBERS(Webview)
   METHOD(Webview, hostfromfolder)
   METHOD(Webview, restorehost)
   METHOD(Webview, postmessage)
+  METHOD(Webview, print)
+  METHOD(Webview, printPDF)
+  READONLY_PROPERTY(Webview, cdp)
   READWRITE_PROPERTY(Webview, zoom)
   READWRITE_PROPERTY(Webview, devtools)
   READWRITE_PROPERTY(Webview, acceleratorkeys)

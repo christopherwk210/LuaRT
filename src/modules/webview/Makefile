@@ -12,7 +12,7 @@
 VERBOSE= >nul 2>&1
 
 MODULE=		webview
-VERSION=	1.0
+VERSION=	1.5
 SRC= 		src\handler.obj src\webview.obj
 
 !if "$(BUILD)" == "debug"

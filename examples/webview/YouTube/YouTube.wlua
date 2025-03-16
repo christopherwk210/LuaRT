@@ -2,7 +2,7 @@ local ui = require "ui"
 require "webview"
 
 local win = ui.Window("YouTube - Powered by LuaRT", 640, 540)
-local wv = ui.Webview(win, "https://www.youtube.com/?app=mobile")
+local wv = ui.Webview(win, { url = "https://www.youtube.com/?app=mobile" })
 
 wv.align = "all"
 

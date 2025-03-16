@@ -6,7 +6,7 @@ local file = embed and 'hello.html' or sys.File(sys.File(arg[0]).path.."/hello.h
 
 local win = ui.Window("Hello World with Webview example", 640, 540)
 
-local wv = ui.Webview(win, "file:///"..file, 0, 46)
+local wv = ui.Webview(win, {url = "file:///"..file}, 0, 46)
 wv.align = "all"
 
 win:center()

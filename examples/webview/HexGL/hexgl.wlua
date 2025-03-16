@@ -5,7 +5,7 @@ local ui = require "ui"
 require "webview"
 
 local win = ui.Window("HexGL example - Powered by LuaRT", "raw")
-local wv = ui.Webview(win, "https://hexgl.bkcore.com/play")
+local wv = ui.Webview(win, { url = "https://hexgl.bkcore.com/play" })
 wv.align = "all"
 
 function wv:onReady()
@@ -13,7 +13,8 @@ function wv:onReady()
     wv.devtools = false
     wv.contextmenu = false
     wv.acceleratorkeys = false
-    win:maximize()
 end
+
+win:maximize()
 
 ui.run(win):wait()

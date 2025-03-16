@@ -8,7 +8,7 @@ require "webview"
 local win = ui.Window("Calculator - web application with LuaRT", "fixed", 290, 310)
 win:loadicon(sys.env.WINDIR.."/System32/calc.exe")
 
-local wv = ui.Webview(win, "file:///"..file)
+local wv = ui.Webview(win, { url = "file:///"..file })
 wv.align = "all"
 
 win:center()

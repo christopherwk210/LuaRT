@@ -2,7 +2,7 @@ local ui = require "ui"
 require "webview"
 
 local win = ui.Window("Webview.useragent property", "fixed", 320, 200)
-local wv = ui.Webview(win, "")
+local wv = ui.Webview(win)
 wv.align = "all"
 
 win:center()
