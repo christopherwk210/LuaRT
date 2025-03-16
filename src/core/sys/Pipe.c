@@ -90,18 +90,21 @@ static int pipe_read(lua_State *L, HANDLE h) {
 
 static int PipeReadTaskContinue(lua_State* L, int status, lua_KContext ctx) {	
 	Pipe *p = (Pipe*)ctx;
-	int count;
+	int count = 0;
 
 	if (!p->out_read)
 		return 0;
-	count = pipe_read(L, p->out_read);
-	count += pipe_read(L, p->err_read);
+	if (p->delay <= GetTickCount()) {
+		count = pipe_read(L, p->out_read);
+		count += pipe_read(L, p->err_read);
+	}
     return count ? count : lua_yieldk(L, 0, ctx, PipeReadTaskContinue);
 }
 
 LUA_METHOD(Pipe, read) {
-	Sleep(luaL_optinteger(L, 2, 100));
-	lua_pushtask(L, PipeReadTaskContinue, lua_self(L, 1, Pipe), NULL);
+	Pipe *p = lua_self(L, 1, Pipe);
+	p->delay = GetTickCount64() + luaL_optinteger(L, 2, 100);
+	lua_pushtask(L, PipeReadTaskContinue, p, NULL);
 	return 1;
 }
 

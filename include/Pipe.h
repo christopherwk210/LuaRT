@@ -24,6 +24,7 @@ typedef struct {
 	HANDLE	err_read;
 	PROCESS_INFORMATION pi;
 	BOOL	echo;
+	ULONGLONG	delay;
 } Pipe;
 
 LUA_API luart_type TPipe;
