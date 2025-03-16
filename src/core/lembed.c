@@ -18,19 +18,21 @@
 #pragma comment(lib, "Dbghelp.lib")
 
 #define MINIZ_HEADER_FILE_ONLY
+#include <compression\lib\miniz.h>
 #include <compression\lib\zip.h>
 #include "resources\resource.h"
 
 #define CMEMLIBS "DLL binary modules"
 
+struct zip_t;
+
 typedef void (*voidf)(void);
 extern int Zip_extract(lua_State *L); 
-extern zip_t *fs;
+extern struct zip_t *fs;
 BYTE *datafs  = NULL;
 wchar_t path[MAX_PATH];
 
 struct zip_t *open_fs(void *ptr, size_t size) {
-	struct zip_t *zip = (struct zip_t *)calloc((size_t)1, sizeof(struct zip_t));
   char * buffer = (char*)ptr;
   DWORD old, new;
 
@@ -38,12 +40,7 @@ struct zip_t *open_fs(void *ptr, size_t size) {
     *buffer = 0x50;   
     VirtualProtect(ptr, 1, old, &new);
   }
-  zip->level = MZ_DEFAULT_LEVEL;
-	if (mz_zip_reader_init_mem(&zip->archive, ptr, size,  MZ_DEFAULT_LEVEL | MZ_ZIP_FLAG_DO_NOT_SORT_CENTRAL_DIRECTORY) == FALSE) {
-		free(zip);
-		zip = NULL;
-	}
-	return zip;
+  return zip_mem_new(ptr, size);
 }
 
 static const char *getnextfilename (char **path, char *end) {
@@ -66,8 +63,8 @@ static const char *getnextfilename (char **path, char *end) {
 static void pusherrornotfound (lua_State *L, const char *path) {
   luaL_Buffer b;
   luaL_buffinit(L, &b);
-  luaL_addstring(&b, "no file '");
-  luaL_addgsub(&b, path, LUA_PATH_SEP, "'\n\tno file '");
+  luaL_addstring(&b, "no embedded file '");
+  luaL_addgsub(&b, path, LUA_PATH_SEP, "'\n\tno embedded file '");
   luaL_addstring(&b, "'");
   luaL_pushresult(&b);
 }
@@ -90,8 +87,10 @@ static const char *searchpath (lua_State *L, const char *name,
   pathname = luaL_buffaddr(&buff);  /* writable list of file names */
   endpathname = pathname + luaL_bufflen(&buff) - 1;
   while ((filename = getnextfilename(&pathname, endpathname)) != NULL) {
-    if (filename[0] == '.' && filename[1] == '\\')
+    filename = luaL_gsub(L, filename, "\\", "/");
+    if (filename[0] == '.' && filename[1] == '/')
       filename += 2; 
+    CharLowerA(filename);
     if ((zip_entry_open(fs, filename) == 0))  /* does file exist and is readable? */
       return lua_pushstring(L, filename);  /* save and return name */
   }
@@ -144,7 +143,7 @@ found:
     lua_concat(L, 2);
     if (zip_entry_open(fs, filename) == 0) { 
       wchar_t *tmp = lua_towstring(L, -1);
-      if ((GetFileAttributesW(tmp) != 0xFFFFFFFF) || (make_path(tmp) && (zip_entry_fread(fs, tmp) == 0))) {
+      if ((GetFileAttributesW(tmp) != 0xFFFFFFFF) || (make_path(tmp) && (zip_entry_fread(fs, lua_tostring(L, -1)) == 0))) {
         HMODULE hm;
               
         if ( (hm = LoadLibraryExW(tmp, NULL, DONT_RESOLVE_DLL_REFERENCES)) ) {
@@ -163,7 +162,7 @@ found:
                   lua_pop(L, 1);
                   if (GetFileAttributesW(dllpath) == INVALID_FILE_ATTRIBUTES) {
                     make_path(dllpath); 
-                    zip_entry_fread(fs, dllpath);
+                    zip_entry_fread(fs, lua_tostring(L, -1));
                     zip_entry_close(fs);
                   }
                   free(dllpath);

@@ -15,16 +15,16 @@
 extern "C" {
 #endif
 
+extern const char *checkFilename(lua_State *L, int idx);
+
 //---------------------------------------- Zip type
 
 LUA_API luart_type TZip;
 
-struct zip_t;
-
 typedef struct {
 	luart_type		type;
 	struct zip_t	*zip;
-	wchar_t			*fname;
+	char			*fname;
 	int				level;
 	char			mode;
 } Zip;
@@ -32,6 +32,11 @@ typedef struct {
 LUA_CONSTRUCTOR(Zip);
 extern const luaL_Reg Zip_methods[];
 extern const luaL_Reg Zip_metafields[];
+
+extern char *checkEntry(lua_State *L, int idx, luart_type t);
+
+#define checkFilename(L, i) checkEntry(L, i, TFile)
+#define checkDirectory(L, i) checkEntry(L, i, TDirectory)
 
 #ifdef __cplusplus
 }

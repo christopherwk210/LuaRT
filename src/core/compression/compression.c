@@ -10,14 +10,19 @@
 #include <luart.h>
 #include <File.h>
 #include <Buffer.h>
-#include <Zip.h>
+#include "Zip.h"
 #include <wchar.h>
-#include <compression\lib\zip.h>
+
+#define MINIZ_HEADER_FILE_ONLY
+#include "lib\miniz.h"
+#include "lib\Zip.h"
+#include "lib\zip.h"
 #include "lrtapi.h"
 
 LUA_METHOD(compression, deflate) {
 	size_t len; 
 	const unsigned char *str = (const unsigned char *)luaL_tolstring(L, 1, &len);
+	
 	mz_ulong cmp_len = compressBound(len);
 	unsigned char *buff = malloc(cmp_len+sizeof(size_t));
 	int result;
@@ -45,15 +50,14 @@ LUA_METHOD(compression, inflate) {
 }
 
 LUA_METHOD(compression, isZip) {
-	wchar_t *fname = luaL_checkFilename(L, 1);
+	char *fname = checkFilename(L, 1);
 	struct zip_t *z = NULL;
 	BOOL isvalid = FALSE;
-	if ( (_waccess(fname, 0) == 0) && (z = zip_open(fname, MZ_DEFAULT_COMPRESSION, 'r')) ) {
+	if ( (_access(fname, 0) == 0) && (z = zip_open(fname, MZ_DEFAULT_COMPRESSION, 'r')) ) {
 		isvalid = TRUE;
 		zip_close(z);
 	}
 	free(fname);
-
 	lua_pushboolean(L, isvalid);
 	return 1;
 }
