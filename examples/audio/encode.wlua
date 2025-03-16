@@ -18,7 +18,9 @@ list.width = 60
 
 
 function recBtn:onClick()
-    audio.record.start("sound."..list.text, list.text)
+    if not audio.record.start("sound."..list.text, list.text) then
+        error(sys.error)
+    end
     self.enabled = false
     list.enabled = false
     stopBtn.enabled = true
