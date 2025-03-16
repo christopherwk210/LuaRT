@@ -20,7 +20,7 @@ function readline(prompt, env)
 	if prompt ~= nil then
 		console.writecolor("blue", prompt)
         console.writecolor("gray", "end")
-        console.x = console.x - 2
+        console.x = console.x - 3
 		isend = true
 	else
 		prompt =  string.uchar(13, 0xE2, 0x96, 0xBA, 32)
@@ -53,11 +53,11 @@ function readline(prompt, env)
 					-- user pressed the RETURN key
 					if c == "\r" then
 						if isend and str == "" then
-							str = "end"
+							str = "end    "
+							highlight(str)
+							console.write(c)
 						end
-						-- console.write(c)
-						console.writecolor("blue", prompt)
-						highlight(str.."\n")
+						console.write("\n")
 						history[#history+1] = str
 						history_index = #history
 						return str

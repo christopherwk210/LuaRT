@@ -47,7 +47,7 @@ function highlight(line)
 						console.write(string.rep(" ", 25))
 						console.write(string.rep("\b", 26))
 					end
-					console.writecolor(types[word] and "gray" or (keywords[word] and "cyan") or (tonumber(word) and "green" or "white"), word)
+					console.writecolor((keywords[word] and "cyan") or (types[word] and "gray") or (tonumber(word) and "green" or "white"), word)
 				end
 				word = ""
 				console.write(ch)
