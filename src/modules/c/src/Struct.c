@@ -50,7 +50,7 @@ size_t get_bytes(lua_State *L, const char *sig, int i) {
 		case 'S':
 		case 's': 	return sizeof(int16_t);
 		case 'i':	
-#ifndef WIN64
+#ifndef _WIN64
 			case '#':
 #endif
 		case 'I': 	
@@ -58,7 +58,7 @@ size_t get_bytes(lua_State *L, const char *sig, int i) {
 		case 'j':
 		case 'J':
 		case 'l': 	
-#ifdef WIN64
+#ifdef _WIN64
 			case '#':
 #endif		
 		case 'L': 	return sizeof(int64_t);
@@ -252,14 +252,14 @@ static void setfield(lua_State *L, Struct *s, const char *field, int idx) {
 			case 'S':
 			case 's': 	*((int16_t *)(s->data+f->offset)) = lua_tointeger(L, idx); break;
 			case 'i':
-#ifndef WIN64
+#ifndef _WIN64
 			case '#':
 #endif			
 			case 'I': 	*((int32_t *)(s->data+f->offset)) = lua_tointeger(L, idx); break;
 			case 'j':
 			case 'J':	*((int64_t *)(s->data+f->offset)) = lua_tointeger(L, idx); break;
 			case 'l': 	*((int64_t *)(s->data+f->offset)) = luaL_checknumber(L, idx); break;
-#ifdef WIN64
+#ifdef _WIN64
 			case '#':
 #endif			
 			case 'L': 	*((uint64_t *)(s->data+f->offset)) = luaL_checknumber(L, idx); break;
@@ -284,30 +284,31 @@ static void setfield(lua_State *L, Struct *s, const char *field, int idx) {
 
 LUA_METHOD(Struct, __call) {
 	Struct *s;
-	BOOL isinit = lua_type(L, 2) == LUA_TTABLE;
+	int type = lua_type(L, 2);
+	int nargs = lua_gettop(L);
+	BOOL isuserdata = lua_isuserdata(L, 2) && (type != LUA_TLIGHTUSERDATA);
 
 	lua_pushvalue(L, 1);
 	Struct *ss = lua_tocinstance(L, 1, NULL);
 	if (ss->data)
 		luaL_error(L, "bad self to create new Struct value (expecting Struct cdef, found Struct value)");
-	lua_Debug ar;
-	lua_getstack(L, 0, &ar);
-	lua_getinfo(L, "n", &ar);
-	ss->name = ar.name;
-	if (lua_isuserdata(L, 2))
+	if (!ss->name) {
+		lua_Debug ar;
+		lua_getstack(L, 0, &ar);
+		lua_getinfo(L, "n", &ar);
+		ss->name = ar.name;
+	}
+	if (isuserdata)
 		lua_pushvalue(L, 2);
-	s = lua_pushinstance(L, Struct, 1 + lua_isuserdata(L, 2));
-	s->name = ar.name;
-	if (isinit) {
+	s = lua_pushinstance(L, Struct, 1 + isuserdata);
+	s->name = ss->name;
+	if (type == LUA_TTABLE) {
 		void *from;
 		luart_type type;
 		if ((from = lua_tocinstance(L, 2, &type))) {
 			if (type == TStruct)
 				memcpy(s->data, ((Struct *)from)->data, ((Struct *)from)->size);
-			else { 
-				s->data = obj_topointer(L, from, type, NULL);
-				s->owned = TRUE;
-			}
+			else luaL_error(L, "cannot initialize a Struct with a %s", luaL_typename(L, 2));
 		} else {
 			lua_pushnil(L);
 			while (lua_next(L, 2)) {
@@ -315,7 +316,17 @@ LUA_METHOD(Struct, __call) {
 				lua_pop(L, 1);
 			}
 		}
-	} 
+	} else if (type == LUA_TLIGHTUSERDATA) {
+#ifdef _WIN64
+		int64_t value = (int64_t)lua_touserdata(L, 2);
+#else
+		int32_t value = (int32_t)lua_touserdata(L, 2);
+#endif
+		memcpy(s->data, &value, sizeof(value));
+	} else {
+		for (int i = 2; i <= nargs; i++)
+			setfield(L, s, s->fields[i-2].name, i);
+	}
 	return 1;
 }
 
@@ -350,14 +361,14 @@ LUA_METHOD(Struct, __metaindex) {
 			case 'S':	lua_pushinteger(L, *((uint16_t*)(s->data+f->offset))); break;
 			case 's': 	lua_pushinteger(L, *((int16_t*)(s->data+f->offset))); break;
 			case 'i':	lua_pushinteger(L, *((int32_t *)(s->data+f->offset))); break;
-#ifndef WIN64
+#ifndef _WIN64
 			case '#':
 #endif
 			case 'I': 	lua_pushinteger(L, *((uint32_t*)(s->data+f->offset))); break;
 			case 'j':	lua_pushinteger(L, *((int64_t*)(s->data+f->offset))); break;
 			case 'J':	lua_pushnumber(L, *((uint64_t*)(s->data+f->offset))); break;
 			case 'l': 	lua_pushinteger(L, *((int64_t *)(s->data+f->offset))); break;
-#ifdef WIN64
+#ifdef _WIN64
 			case '#':
 #endif			
 			case 'L': 	lua_pushnumber(L, *((uint64_t *)(s->data+f->offset))); break;

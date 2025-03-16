@@ -149,14 +149,14 @@ static void setfield(lua_State *L, Union *u, const char *field, int idx) {
 			case 'S':
 			case 's': 	*((int16_t *)(u->data)) = lua_tointeger(L, idx); break;
 			case 'i':
-#ifndef WIN64
+#ifndef _WIN64
 			case '#':
 #endif
 			case 'I': 	*((int32_t *)(u->data)) = lua_tointeger(L, idx); break;
 			case 'j':
 			case 'J':	*((int64_t *)(u->data)) = lua_tointeger(L, idx); break;
 			case 'l': 	*((int64_t *)(u->data)) = luaL_checknumber(L, idx); break;
-#ifdef WIN64
+#ifdef _WIN64
 			case '#':
 #endif			
 			case 'L': 	*((uint64_t *)(u->data)) = luaL_checknumber(L, idx); break;
@@ -181,23 +181,25 @@ static void setfield(lua_State *L, Union *u, const char *field, int idx) {
 }
 
 LUA_METHOD(Union, __call) {
-	int init = FALSE;
+	int type = lua_type(L, 2);
 	Union *u;
 	Union *uu = lua_tocinstance(L, 1, NULL);
+	BOOL isuserdata = lua_isuserdata(L, 2) && (type != LUA_TLIGHTUSERDATA);
 
-	init = lua_istable(L, 2);
 	lua_pushvalue(L, 1);
 	if (uu->data)
 		luaL_error(L, "bad self to create new Union value (expecting Union cdef, found Union value)");
-	lua_Debug ar;
-	lua_getstack(L, 0, &ar);
-	lua_getinfo(L, "n", &ar);
-	uu->name = ar.name;
-	if (lua_isuserdata(L, 2))
+	if (!uu->name) {
+		lua_Debug ar;
+		lua_getstack(L, 0, &ar);
+		lua_getinfo(L, "n", &ar);
+		uu->name = ar.name;
+	}
+	if (isuserdata)
 		lua_pushvalue(L, 2);
-	u = lua_pushinstance(L, Union, 1 + lua_isuserdata(L, 2));
-	u->name = ar.name;
-	if (init) {
+	u = lua_pushinstance(L, Union, 1 + isuserdata);
+	u->name = uu->name;
+	if (type == LUA_TTABLE) {
 		Union *from;
 		if ((from = lua_iscinstance(L, 2, TUnion))) {
 			memcpy(u->data, from->data, from->size);
@@ -208,6 +210,13 @@ LUA_METHOD(Union, __call) {
 				lua_pop(L, 1);
 			}
 		}
+	} else if (type == LUA_TLIGHTUSERDATA) {
+#ifdef _WIN64
+		int64_t value = (int64_t)lua_touserdata(L, 2);
+#else
+		int32_t value = (int32_t)lua_touserdata(L, 2);
+#endif
+		memcpy(u->data, &value, sizeof(value));
 	}
 	return 1;
 }
@@ -246,14 +255,14 @@ LUA_METHOD(Union, __metaindex) {
 			case 'S':	lua_pushinteger(L, *((uint16_t*)(u->data))); break;
 			case 's': 	lua_pushinteger(L, *((int16_t*)(u->data))); break;
 			case 'i':	lua_pushinteger(L, *((int32_t *)(u->data))); break;
-#ifndef WIN64
+#ifndef _WIN64
 			case '#':
 #endif			
 			case 'I': 	lua_pushnumber(L, *((uint32_t*)(u->data))); break;
 			case 'j':	lua_pushinteger(L, *((int64_t*)(u->data))); break;
 			case 'J':	lua_pushnumber(L, *((uint64_t*)(u->data))); break;
 			case 'l': 	lua_pushinteger(L, *((int64_t *)(u->data))); break;
-#ifdef WIN64
+#ifdef _WIN64
 			case '#':
 #endif			
 			case 'L': 	lua_pushnumber(L, *((uint64_t *)(u->data))); break;

@@ -183,12 +183,12 @@ static int get_array_value(lua_State *L, Array *a, void *data) {
         case _ushort:	lua_pushinteger(L, *((uint16_t*)data)); break;
         case _short: 	lua_pushinteger(L, *((int16_t*)data)); break;
         case _int:	    lua_pushinteger(L, *((int32_t *)data)); break;
-#ifndef WIN64
+#ifndef _WIN64
         case _size:
         case _uint: 	lua_pushnumber(L, *((uint32_t*)data)); break;
 #endif
         case _long:	    lua_pushinteger(L, *((long*)data)); break;
-#ifdef WIN64
+#ifdef _WIN64
         case _size:
         case _ulong:	lua_pushinteger(L, *((unsigned long*)data)); break;
 #endif
@@ -243,12 +243,12 @@ static int set_value(lua_State *L, Array *a, char *data, int idx) {
         case _ushort:   *((uint16_t *)data) = lua_tointeger(L, idx); break;
         case _short: 	*((int16_t *)data) = lua_tointeger(L, idx); break;
         case _int:      *((uint32_t *)data) = lua_tointeger(L, idx); break;
-#ifndef WIN64
+#ifndef _WIN64
         case _size:
         case _uint: 	*((int32_t *)data) = lua_tointeger(L, idx); break;
 #endif
         case _long:     *((int64_t *)data) = lua_tointeger(L, idx); break;
-#ifdef WIN64
+#ifdef _WIN64
         case _size:
         case _ulong:	*((uint64_t *)data) = lua_tointeger(L, idx); break;
 #endif

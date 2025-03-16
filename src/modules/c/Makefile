@@ -12,7 +12,7 @@
 VERBOSE= >nul 2>&1
 
 MODULE=		C 
-VERSION=	0.7
+VERSION=	0.8
 SRC= 		src\C.obj src\Library.obj src\Struct.obj src\Value.obj src\Union.obj src\Array.obj src\Pointer.obj
 
 !if "$(BUILD)" == "debug"
