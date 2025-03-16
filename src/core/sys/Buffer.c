@@ -99,6 +99,7 @@ void hex_decode(lua_State *L, Buffer *b)
 		i += 2;
 	}
 	b->bytes = result;
+	b->bytes[i-1] = 0;
 	b->size /= 2;
 }
 
@@ -318,8 +319,8 @@ int hex_encode(lua_State *L, const char *bb, size_t len) {
 static int do_encode(lua_State *L, int encoding) {
 	Buffer *b = lua_self(L, 1, Buffer);
 	switch(encoding) {
-		case 0:		lua_pushstring(L, (const char *)b->bytes); break;
-		case 1:		lua_pushwstring(L, (wchar_t*)b->bytes); break;
+		case 0:		lua_pushlstring(L, (const char *)b->bytes, b->size); break;
+		case 1:		lua_pushlwstring(L, (wchar_t*)b->bytes, b->size / 2); break;
 		case 2:		base64_encode(L, b); break;
 		case 3:		hex_encode(L, (const char *)b->bytes, b->size); break;
 		default:	luaL_error(L, "unknown encoding '%s'", encodings[encoding]); 
