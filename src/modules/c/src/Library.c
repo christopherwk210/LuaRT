@@ -442,6 +442,7 @@ int wrapcall(lua_State *L) {
 		case '#':		
 #endif
 		case 'I': lua_pushinteger(L, (unsigned int)dcCallInt(vm, func)); break;
+#ifdef WIN64
 		case '#':
 				   	uint64_t size = (uint64_t)dcCallLongLong(vm, func);
 					if (size > INT64_MAX)
@@ -449,7 +450,7 @@ int wrapcall(lua_State *L) {
 					else
 						lua_pushinteger(L, size);
 					return 1;
-
+#endif
 		case 'L': lua_pushnumber(L, (unsigned long long)dcCallLongLong(vm, func)); break;
 		case 'f': lua_pushnumber(L, dcCallFloat(vm, func)); break;
 		case 'd': lua_pushnumber(L, dcCallDouble(vm, func)); break;
