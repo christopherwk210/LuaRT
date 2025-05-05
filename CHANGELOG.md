@@ -1,3 +1,84 @@
+## LuaRT v2.0.0 (May 10 2025)
+
+#### Highlights 
+- Enhanced `rtc` static compilation to use Lua static binary modules : no more `lua54.dll` dependency
+- New `serial` module for asynchronous serial communications
+- Various community reported suggestions and bug fixes
+
+#### LuaRT C API
+- New `lua54-static.lib` to build static Lua 5.4 binary modules without `lua54.dll` dependency
+- New `RTSTATIC` define for static compilation
+- Updated: `lua_toBuffer()` renamed to `lua_pushBuffer()`
+
+#### LuaRT interpreters
+- `luart-static` and `wluart-static` interpreters can now load static binary module suffixed by `-static.dll`
+- `luart-static` and `wluart-static` interpreters don't include `net` and `crypto` modules anymore
+
+#### RTBuilder
+- Fixed: Putting a Canvas or Webview widget inside a Panel won't crash RTBuilder anymore
+
+#### rtc
+- New: `sys.File()` now uses embedded files first for compiled scripts.
+- Updated: static compiled executables can now embed and load Lua binary modules (linked with `lua54-static.lib` and suffixed by `-static.dll`)
+- Updated: `rtc` now displays more information during compilation
+- Updated: `wrtc` now supports static linking of binary modules
+- Updated: static compiled executables can now load Lua 5.4 binary modules suffixed by `-static.dll`
+- Updated: arg[0] now contains the current executable fullpath for compiled scripts
+- Fixed: `sys.File()` won't crash anymore for embedded files now
+
+#### `serial` module
+- New module for serial communications
+- New `Port` object supporting asynchronous COM ports operations with Tasks, and fine control for baud rate, parity, stop bits, etc.
+
+#### `sys` module
+- New: `COM` object can now be indexed by any of its constant values
+- Updated: `sys\word.lua` example updated with the new `COM` object constants indexing
+- Fixed: `Pipe:read()` won't wait indefinitely if the running process exits
+- Fixed: `Datetime:interval()` now returns correctly rounded values
+- Fixed: Setting `Datetime` properties now updates/normalizes correctly its internal date/time representation
+
+#### `compression` module
+- Fixed: `Zip.async.extract()` works now correctly
+- Fixed: `Zip` entries now can use either `\` or `/` separator characters for paths
+
+#### `console` module
+- New: `console:show()` and `console:hide()` methods
+- New: `console.visible` property
+- Updated: `console.read()` argument is now optional, defaulting to 1
+
+#### `C` module
+- Updated: `Struct` can now use multidimensional array members in signature
+- Fixed: `C.Library()` now can load embedded DLL files as expected
+- Fixed: `Struct` values can now be initialized with another `Struct` value
+- Fixed: Any Lua C Object can now be used as C pointer
+
+#### `net` module
+- New: `Http:patch()`method for PATCH HTTP requests
+- Updated: `Http:put()`, `Http:delete()` and `Http:patch()` now takes a second parameter to set the body content of the request
+
+#### `sysutils` module
+- Fixed: `sysutils.user` won't include a terminal `\0` character anymore
+- Updated: `sysutils.shellexec()` now waits for the child process to terminate before returning
+
+#### `ui` module
+- Fixed: `Tab` widget now draws correctly when changing Tab font properties
+- Fixed: `Groupbox` now draws correctly and adapts to the parent background color
+- Fixed: `Button` size is now correct when setting a button icon
+- Fixed: `Widget.font` property changes now the Widget font as expected
+- Updated: `Button.hastext` property now remembers last Button size
+
+#### `canvas` module
+- New `Image:drawsub()` method to draw a part of an image with new example `subimage.wlua`
+- New `Canvas:onMouseWheel()` event for detecting mouse wheel rotation
+- Fixed: `Canvas:measure()` won't leak memory anymore
+
+#### `webview` module
+- Updated: URL starting by `"file:///"` now search the resource on the current directory, and if not found, search in the embedded content
+- Updated: `Webview.cdp` property is now read/write, allowing to set a Chrome DevTools Protocol callback function for events
+- New: `Webview\Chrome DevTools Protocol\event.wlua` example
+- Fixed: `Webview:show()`, `Webview:hide()` and `Webview.visible` now update Webview state correctly
+
+
 ## LuaRT v1.9.5 (March 23 2025)
 
 #### Highlights 

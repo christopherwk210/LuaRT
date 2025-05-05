@@ -177,6 +177,7 @@ LUA_METHOD(Webview, loadstring) {
 
 LUA_METHOD(call, cdp) {
    	WebviewHandler *wv;
+	int nargs = lua_gettop(L);
 	
 	luaL_getmetafield(L, 1, "wv");
 	wv = static_cast<WebviewHandler*>(lua_self(L, -1, Widget)->user);
@@ -184,11 +185,11 @@ LUA_METHOD(call, cdp) {
   	if (wv->webview2) {
 		luaL_getmetafield(L, 1, "path");
     	wchar_t *method = toUTF16(lua_tostring(L, -1));
-    	wchar_t *JSON = toUTF16(luaL_checkstring(L, 2));
+    	wchar_t *JSON =  nargs == 1 ? NULL : toUTF16(luaL_checkstring(L, 2));
 		TaskCallback *ExecCB = new TaskCallback();
 
 		lua_pushboolean(L, false);
-		if (SUCCEEDED(wv->webview2->CallDevToolsProtocolMethod(method, JSON, static_cast<ICoreWebView2CallDevToolsProtocolMethodCompletedHandler *>(ExecCB)))) {
+		if (SUCCEEDED(wv->webview2->CallDevToolsProtocolMethod(method, JSON ? JSON : L"{}", static_cast<ICoreWebView2CallDevToolsProtocolMethodCompletedHandler *>(ExecCB)))) {
 			lua_pushtask(L, EvalTaskContinue, ExecCB, NULL);
 			lua_pushvalue(L, -1);
 			lua_call(L, 0, 0); 
@@ -196,8 +197,65 @@ LUA_METHOD(call, cdp) {
 			delete ExecCB;
 		GlobalFree(method);
 		GlobalFree(JSON);
+		lua_getmetatable(L, 1);
+		lua_pushnil(L);
+		lua_setfield(L, -2, "path");
+		lua_pop(L, 1);
   } 
   return 1;
+}
+
+static int EventTaskContinue(lua_State* L, int status, lua_KContext ctx) {
+    EventTask *cb = (EventTask *)ctx;
+    
+    if (cb->done) {
+		lua_rawgeti(L, LUA_REGISTRYINDEX, cb->ref);
+		luaL_unref(L, LUA_REGISTRYINDEX, cb->ref);
+		lua_pushwstring(L, cb->result);
+		lua_call(L, 1, 0);
+		CoTaskMemFree(cb->result);
+		delete cb;
+        return 0;
+    }
+    return lua_yieldk(L, 0, ctx, EventTaskContinue);
+}
+
+LUA_METHOD(setevent, cdp) {
+   	WebviewHandler *wv;
+	
+	luaL_checktype(L, 3, LUA_TFUNCTION);
+	luaL_getmetafield(L, 1, "wv");
+	wv = static_cast<WebviewHandler*>(lua_self(L, -1, Widget)->user);
+
+  	if (wv->webview2) {
+		size_t len;
+		wchar_t *eventName = NULL;
+
+		luaL_getmetafield(L, 1, "path");
+		std::string event = lua_tostring(L, -1);
+		event = event + '.' + lua_tostring(L, 2);
+		eventName = toUTF16(event.c_str());
+		
+		ICoreWebView2DevToolsProtocolEventReceiver *receiver;
+		if (SUCCEEDED(wv->webview2->GetDevToolsProtocolEventReceiver(eventName, &receiver)) && receiver) {
+			EventTask *task;
+
+			lua_pushvalue(L, 3);
+			task = new EventTask { luaL_ref(L, LUA_REGISTRYINDEX), FALSE, NULL };	
+			if (SUCCEEDED(receiver->add_DevToolsProtocolEventReceived(Callback<ICoreWebView2DevToolsProtocolEventReceivedEventHandler>(
+				[task](ICoreWebView2* sender, ICoreWebView2DevToolsProtocolEventReceivedEventArgs* args) -> HRESULT {
+					args->get_ParameterObjectAsJson(&task->result);
+					task->done = true;
+					return S_OK;
+			}).Get(), &task->token))); {
+				lua_pushtask(L, EventTaskContinue, task, NULL);
+				lua_pushvalue(L, -1);
+				lua_call(L, 0, 0); 
+			}
+		} 
+		free(eventName);
+  	} 
+  	return 0;
 }
 
 static int path_index(lua_State* L) {
@@ -231,6 +289,8 @@ LUA_PROPERTY_GET(Webview, cdp) {
     if (luaL_newmetatable(L, "path_mt")) {
         lua_pushcfunction(L, path_index);
         lua_setfield(L, -2, "__index");
+        lua_pushcfunction(L, setevent_cdp);
+        lua_setfield(L, -2, "__newindex");
         lua_pushcfunction(L, call_cdp);
         lua_setfield(L, -2, "__call");
 		lua_pushvalue(L, 1);
@@ -245,11 +305,12 @@ LUA_PROPERTY_SET(Webview, url) {
 	int result = FALSE;
   	if (wv->webview2) {
     	wchar_t *uri = toUTF16(lua_tostring(L, 2));
-    	result = SUCCEEDED(wv->webview2->Navigate( uri));
+    	result = SUCCEEDED(wv->webview2->Navigate(uri));
     	GlobalFree(uri);
-  } 
-  lua_pushboolean(L, result);
-  return 1;
+	} 
+	if (!result)
+		luaL_error(L, "failed to navigate to %s", lua_tostring(L, 2));
+	return 0;
 }
 
 LUA_METHOD(Webview, hostfromfolder) {
@@ -370,6 +431,37 @@ LUA_METHOD(Webview, printPDF) {
 		}
 	}
 	return 1;
+}
+
+LUA_METHOD(Webview, show) {
+	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
+	if (wv->controller)
+		wv->controller->put_IsVisible(true);
+	ShowWindow(wv->hwnd, SW_SHOW);
+	return 0;
+}
+
+LUA_METHOD(Webview, hide) {
+	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
+	if (wv->controller)
+		wv->controller->put_IsVisible(false);
+	ShowWindow(wv->hwnd, SW_HIDE);
+	return 0;
+}
+
+LUA_PROPERTY_GET(Webview, visible) {
+	lua_pushboolean(L, IsWindowVisible(static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user)->hwnd));
+	return 1;
+}
+
+LUA_PROPERTY_SET(Webview, visible) {
+	WebviewHandler *wv = static_cast<WebviewHandler*>(lua_self(L, 1, Widget)->user);
+	bool visible = lua_toboolean(L, 2);
+
+	if (wv->controller)
+		wv->controller->put_IsVisible(visible);
+	ShowWindow(wv->hwnd, visible ? SW_SHOW : SW_HIDE);
+	return 0;
 }
 
 LUA_PROPERTY_GET(Webview, zoom) {
@@ -537,8 +629,11 @@ OBJECT_MEMBERS(Webview)
   METHOD(Webview, postmessage)
   METHOD(Webview, print)
   METHOD(Webview, printPDF)
+  METHOD(Webview, show)
+  METHOD(Webview, hide)
   READONLY_PROPERTY(Webview, cdp)
   READWRITE_PROPERTY(Webview, zoom)
+  READWRITE_PROPERTY(Webview, visible)
   READWRITE_PROPERTY(Webview, devtools)
   READWRITE_PROPERTY(Webview, acceleratorkeys)
   READWRITE_PROPERTY(Webview, contextmenu)
@@ -555,32 +650,28 @@ OBJECT_METAFIELDS(Webview)
 END
 
 int event_onReady(lua_State *L, Widget *w, MSG *msg) {
-  lua_throwevent(L, "onReady", 1);
-  return 0;
+	return lua_throwevent(L, "onReady", 1);
 }
 
 int event_onFullscreen(lua_State *L, Widget *w, MSG *msg) {
 	lua_pushboolean(L, msg->wParam);
-	lua_throwevent(L, "onFullScreenChange", 2);
-	return 0;
+	return lua_throwevent(L, "onFullScreenChange", 2);
 }
 
 int event_onLoaded(lua_State *L, Widget *w, MSG *msg) {
 	lua_pushboolean(L, msg->wParam);
 	lua_pushinteger(L, msg->lParam);
-	lua_throwevent(L, "onLoaded", 3);
-	return 0;
+	return lua_throwevent(L, "onLoaded", 3);
 }
 
 int event_onMessage(lua_State *L, Widget *w, MSG *msg) {
     lua_pushwstring(L, (wchar_t*)msg->wParam);
     free((wchar_t*)msg->wParam);
-	lua_throwevent(L, "onMessage", 2);
-	return 0;
+	return lua_throwevent(L, "onMessage", 2);
 }
 
 extern "C" {
-	int __declspec(dllexport) luaopen_webview(lua_State *L) {
+	extern int __declspec(dllexport) luaopen_webview(lua_State *L) {
 		onReady = lua_registerevent(L, NULL, event_onReady);
 		onMessage = lua_registerevent(L, NULL, event_onMessage);
 		onLoaded = lua_registerevent(L, NULL, event_onLoaded);

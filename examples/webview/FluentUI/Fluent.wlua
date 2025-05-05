@@ -1,9 +1,7 @@
 local ui = require "ui"
-
--- Get the File 'Fluent.html' depending on if it is embeded or not
-local file = embed and 'Fluent.html' or sys.File(sys.File(arg[0]).path.."/Fluent.html").fullpath
-
 require "webview"
+
+sys.currentdir = sys.File(arg[0]).path
 
 local win = ui.Window("FluentUI application with LuaRT", "fixed", 400, 150)
 win:loadicon(sys.env.WINDIR.."/System32/shell32.dll", 278)
@@ -19,11 +17,17 @@ sys.Pipe("wmic computersystem get TotalPhysicalMemory"):read(2000).after = funct
     wv:postmessage('{ "id": "memorysize", "text": "'..ram.." Gb"..'"}', true)
 end
 
+function win:onClose()
+    sys.exit(0)
+end
+
 function wv:onLoaded()
     wv:postmessage('{ "id": "memorysize", "text": "'..ram.." Gb"..'"}', true)
     wv:postmessage('{ "id": "cpuname", "text": "'..sys.registry.read('HKEY_LOCAL_MACHINE', 'Hardware\\Description\\System\\CentralProcessor\\0', 'ProcessorNameString')..'"}', true)
     wv:postmessage(' {"show": true}')
     wv:postmessage('{ "id": "graphic", "text": "'..(sys.registry.read('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\WinSAT', 'PrimaryAdapterString') or "Not available")..'"}', true)
+    win:show()
+    wv:show()
 end
 
 function wv:onReady()
@@ -43,9 +47,11 @@ function wv:onReady()
             document.body.style.visibility = "visible";
         }
     }); ]])
-    wv.url = "file:///"..file
+    wv.url = "file:///Fluent.html"
 end
 
 win:center()
 
-ui.run(win):wait()
+while true do
+    sleep()
+end

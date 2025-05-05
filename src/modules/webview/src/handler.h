@@ -20,9 +20,11 @@ extern wchar_t *ErrorFromHR(HRESULT errorCode);
 wchar_t *toUTF16(const char *s);
 
 typedef struct {
-	HANDLE thread;
+	int 	 ref;
+	bool 	 done;
 	wchar_t *result;
-} evalresult;
+	EventRegistrationToken token;
+} EventTask;
 
 template <typename T>
 static HRESULT STDMETHODCALLTYPE Null_QueryInterface(T* This, REFIID riid, void** ppvObject) {
@@ -55,7 +57,6 @@ public:
 	HWND hwnd; 
 	zip_t *archive = NULL;
 	std::wstring url;
-	std::vector<std::unique_ptr<evalresult*>> results;
 
 	ICoreWebView2Settings3* settings = nullptr;
 	ICoreWebView2* webview2 = nullptr;

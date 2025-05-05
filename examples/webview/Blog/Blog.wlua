@@ -1,13 +1,10 @@
 local ui = require "ui"
-
--- Get the File 'Blog.html' depending on if it is embeded or not
-local file = embed and 'Blog.html' or sys.File(sys.File(arg[0]).path.."/Blog.html").fullpath
-
 require "webview"
 
-local win = ui.Window("Blog application using Tailwind CSS - Powered by LuaRT", "fixed", 414, 776)
+sys.currentdir = sys.File(arg[0]).path
 
-local wv = ui.Webview(win, { url = "file:///"..file })
+local win = ui.Window("Blog application using Tailwind CSS - Powered by LuaRT", "fixed", 414, 776)
+local wv = ui.Webview(win, { url = "file:///Blog.html" })
 wv.align = "all"
 
 function wv:onReady()

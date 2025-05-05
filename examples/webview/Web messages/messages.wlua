@@ -1,8 +1,7 @@
 local ui = require "ui"
 require "webview"
 
--- Get the File 'messages.html' (even if the script is running from another folder)
-local file = sys.File(sys.File(arg[0]).path.."/messages.html")
+sys.currentdir = sys.File(arg[0]).path
 
 local win = ui.Window("Webview Web Messages test", "fixed", 640, 540)
 
@@ -10,7 +9,7 @@ local button = ui.Button(win, "Change color !", 0, 0)
 button:center()
 button.y = 10
 
-local wv = ui.Webview(win, { url = file.fullpath }, 0, button.height+button.y+20, 640, 540)
+local wv = ui.Webview(win, { url = "file:///messages.html" }, 0, button.height+button.y+20, 640, 540)
 
 function button:onClick()
     wv:postmessage('{ "SetColor" : "blue" }', true)

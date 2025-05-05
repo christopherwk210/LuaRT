@@ -7,16 +7,14 @@
 */
 
 #include "handler.h"
-#include <WebView2.h>
-#include <WebView2EnvironmentOptions.h>
 #include <shlwapi.h>
 #include <string>
 #include <Zip.h>
-#define ZIP_SHARED 
-#include "..\..\core\compression\lib\zip.h"
 
 #include <wrl.h>
 #include <WebView2.h>
+#include <WebView2EnvironmentOptions.h>
+#include <filesystem>
 
 using namespace Microsoft::WRL;
 
@@ -38,10 +36,14 @@ static char *wchar_toutf8(const wchar_t *str) {
 }
 
 WebviewHandler::~WebviewHandler() {
-	this->webview2->RemoveWebResourceRequestedFilter(L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
-    this->webview3->Release();
-	this->webview2->Release();
-    this->controller->Release();
+	if (this->webview3)
+	this->webview3->Release();
+	if (this->webview2) {
+		this->webview2->RemoveWebResourceRequestedFilter(L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
+		this->webview2->Release();
+	}
+	if (this->controller)
+    	this->controller->Release();
 }
 
 WebviewHandler::WebviewHandler(HWND h, const char *URL, const char *args) {
@@ -72,7 +74,7 @@ WebviewHandler::WebviewHandler(HWND h, const char *URL, const char *args) {
                 [h, this](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
 					if (FAILED(result))
 						return E_FAIL;
-					EventRegistrationToken uritoken, msgtoken, navigtoken,fullscreentoken;
+					EventRegistrationToken uritoken, msgtoken, navigtoken, fullscreentoken;
 					this->controller = controller;
 					this->controller->AddRef();
 					this->controller->get_CoreWebView2(&this->webview2);
@@ -100,47 +102,69 @@ WebviewHandler::WebviewHandler(HWND h, const char *URL, const char *args) {
 							args2->Release();
 							PostMessage(this->hwnd, onLoaded, (WPARAM)result, (LPARAM)status);
 							return S_OK;
-						}).Get(), &navigtoken);
+					}).Get(), &navigtoken);
 						//--- onWebResourceRequested event
-						this->webview2->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>(
-							[this](ICoreWebView2 *sender, ICoreWebView2WebResourceRequestedEventArgs *args) -> HRESULT {
-								ICoreWebView2WebResourceRequest *request;
-								HRESULT result = E_FAIL;
-								if (this->archive) {
-							  		if (SUCCEEDED(args->get_Request(&request))) {
-										LPWSTR wuri;
-										if (SUCCEEDED(request->get_Uri(&wuri))) {
-											char *uri = wchar_toutf8(wuri);
-											char *entry = strstr(uri, "file:///") ? uri+8 : NULL;
-											if (entry && zip_entry_open(this->archive, entry) == 0) {
-												void *buffer;
-												size_t buffsize;
-												IStream *stream;
-												LPWSTR mime = NULL;
-												wchar_t content[128] = L"Content-Type: text/html";
-												ICoreWebView2Environment *env;
-												ICoreWebView2WebResourceResponse *response;
-												zip_entry_read(this->archive, &buffer, &buffsize);
-												zip_entry_close(this->archive);
-												stream = SHCreateMemStream((const BYTE*)buffer, buffsize);   
+					this->webview2->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>(
+						[this](ICoreWebView2 *sender, ICoreWebView2WebResourceRequestedEventArgs *args) -> HRESULT {
+							ICoreWebView2WebResourceRequest *request;
+							HRESULT result = E_FAIL;
+							if (SUCCEEDED(args->get_Request(&request))) {
+								LPWSTR wuri;
+								if (SUCCEEDED(request->get_Uri(&wuri))) {
+									char *uri = wchar_toutf8(wuri);
+									char *entry = strstr(uri, "file:///") ? uri+8 : NULL;
+									if (this->archive) {
+										if (entry && zip_entry_open(this->archive, entry) == 0) {
+											void *buffer;
+											size_t buffsize;
+											IStream *stream;
+											LPWSTR mime = NULL;
+											wchar_t content[128] = L"Content-Type: text/html";
+											ICoreWebView2Environment *env;
+											ICoreWebView2WebResourceResponse *response;
+											zip_entry_read(this->archive, &buffer, &buffsize);
+											zip_entry_close(this->archive);
+											stream = SHCreateMemStream((const BYTE*)buffer, buffsize);   
+											this->webview3->get_Environment(&env);
+											if (SUCCEEDED(FindMimeFromData(NULL, wuri, NULL, 0, NULL, FMFD_URLASFILENAME, &mime, 0))) {
+												_snwprintf(content, 128, L"Content-Type: %s", mime);
+												CoTaskMemFree(mime);
+											}
+											env->CreateWebResourceResponse(stream, 200, L"OK", content, &response);
+											args->put_Response(response);
+											stream->Release();
+											result = S_OK;
+											free(buffer);
+										}  		
+									} else {
+										if (entry && std::filesystem::exists(entry)) {
+											void *buffer;
+											size_t buffsize;
+											IStream *stream;
+											LPWSTR mime = NULL;
+											wchar_t content[128] = L"Content-Type: text/html";
+											ICoreWebView2Environment *env;
+											ICoreWebView2WebResourceResponse *response;
+											if (SUCCEEDED(SHCreateStreamOnFileA(entry, STGM_READ, &stream))) {   
 												this->webview3->get_Environment(&env);
 												if (SUCCEEDED(FindMimeFromData(NULL, wuri, NULL, 0, NULL, FMFD_URLASFILENAME, &mime, 0))) {
 													_snwprintf(content, 128, L"Content-Type: %s", mime);
 													CoTaskMemFree(mime);
 												}
-												env->CreateWebResourceResponse(stream, 200, L"OK", content, &response);
-												args->put_Response(response);
-												result = S_OK;
-												free(buffer);
-											}  		
-											free(uri);
-											GlobalFree(wuri);
-										}
+											}
+											env->CreateWebResourceResponse(stream, 200, L"OK", content, &response);
+											args->put_Response(response);
+											stream->Release();
+											result = S_OK;
+										}  		
 									}
-									request->Release();
+									free(uri);
 								}
-								return result;
-							}).Get(), &uritoken);	
+								GlobalFree(wuri);
+								request->Release();
+							}
+							return result;
+						}).Get(), &uritoken);	
 						//--- onContainsFullScreenElementChangedEvent event
 						this->webview2->add_ContainsFullScreenElementChanged(Callback<ICoreWebView2ContainsFullScreenElementChangedEventHandler>(
 							[this](ICoreWebView2 *sender, IUnknown *args) -> HRESULT {
@@ -151,7 +175,7 @@ WebviewHandler::WebviewHandler(HWND h, const char *URL, const char *args) {
 									return S_OK;
 								}
 								return E_FAIL;
-							}).Get(), &fullscreentoken);	
+						}).Get(), &fullscreentoken);	
 					this->webview2->Navigate(this->url.c_str());
 					this->webview2->get_Settings((ICoreWebView2Settings**)&this->settings);	
 					PostMessage(this->hwnd, onReady, 0, 0);
