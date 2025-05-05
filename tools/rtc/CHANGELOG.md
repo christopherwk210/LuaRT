@@ -1,5 +1,14 @@
 # rtc Changelog
 
+## rtc v2.0 (May 10 2025)
+- New: `sys.File()` now uses embedded files first for compiled scripts.
+- Updated: static compiled executables can now embed and load Lua binary modules (linked with `lua54-static.lib` and suffixed by `-static.dll`)
+- Updated: `rtc` now displays more information during compilation
+- Updated: `wrtc` now supports static linking of binary modules
+- Updated: static compiled executables can now load Lua 5.4 binary modules suffixed by `-static.dll`
+- Updated: arg[0] now contains the current executable fullpath for compiled scripts
+- Fixed: `sys.File()` won't crash anymore for embedded files now
+
 ## rtc v1.9.5 (March 22 2025)
 - Updated: `rtc` now supports submodules linking
 

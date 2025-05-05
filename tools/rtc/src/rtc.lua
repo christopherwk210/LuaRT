@@ -11,8 +11,9 @@ local icon					-- executable icon
 local directory				-- Directory to be embedded in the executable
 local file					-- main Lua File to be executed when running the executable
 local target = "luart.exe"	-- target interpreter for console or window subsystem
-local setoutput, set_icon, static, forceconsole = false, false, false, false
+local setoutput, set_icon, forceconsole = false, false, false
 local console, gui
+static = false
 
 local libs = {}
 local files = {}
@@ -85,10 +86,6 @@ end
 
 file = files[1]
 
-if #libs > 0 and static then
-	error("could not link modules in static mode")
-end
-
 if file == nil then
 	error("no input file")
 end
@@ -147,15 +144,30 @@ z:write(fname, "__mainLuaRTStartup__.lua")
 fname:remove()
 
 
+local ext = static and "-static.dll" or ".dll"
+
 for lib in each(libs) do
 	local libpath = sys.Directory(sys.File(arg[-1]).path.."..\\modules\\").exists and sys.File(arg[-1]).path.."..\\modules\\"..lib or sys.File(arg[-1]).path.."modules\\"..lib
-	if sys.Directory(libpath).exists then
-		z:write(libpath, "__modules/"..lib)
+	local moddir = sys.Directory(libpath)
+	if moddir.exists then
+		for entry in each(moddir) do
+			if type(entry) == "File" then
+				if entry.extension == ".dll"  then
+					if string.lower(entry.name) == lib..(static and ".dll" or "-static.dll") then
+						goto continue
+					end
+				end
+				print("Linking "..lib.." module")
+				z:write(entry.fullpath, "__modules/"..lib.."/"..entry.name)
+			end
+::continue::			
+		end
 	else
-		libfile = sys.File(lib..".dll")
+		libfile = sys.File(lib..ext)
 		if not libfile.exists then
-			error("module '"..lib.."' not found")
+			error("error: module '"..lib.."' not found")
 		else
+			print("Linking "..lib.." module")
 			z:write(libfile)
 		end
 	end
@@ -166,7 +178,7 @@ if directory ~= nil then
 end
 z:close()
 
-output = sys.File(output or file.fullpath:gusub("(%w+)$", "exe"))
+output = sys.File(output or file.name:gusub("(%w+)$", "exe"))
 output:remove()
 target:copy(output.fullpath)
 target:remove()
@@ -182,7 +194,7 @@ end
 if ui then
 	print("Successfully compiled "..output.name.." ("..math.floor(output.size/1024).."Kb)")
 else
-	print(output.name)
+	print("Successfully compiled "..output.name)
 end
 fs:close()
 fs:remove()

@@ -34,7 +34,7 @@ radiodynamic.checked = true
 local radiostatic = ui.Radiobutton(group, "Static", 26, 50)
 
 local lbl = ui.Label(win, "Executable icon", group.x + group.width+26, group.y + 10)
-local iconBtn = ui.Button(win, "", math.floor(lbl.x+lbl.width/2-12), lbl.y + lbl.height+4, 32, 32)
+local iconBtn = ui.Button(win, "", math.floor(lbl.x+lbl.width/2-12), lbl.y + lbl.height+4)
 iconBtn.hastext = false
 
 local execBtn = ui.Button(win, "Generate executable")
@@ -90,19 +90,6 @@ function embed.chooseBtn:onClick()
     end
 end
 
-function radiodynamic:onClick()
-    modules.enabled = radiodynamic.checked;
-end
-
-
-function radiostatic:onClick()
-    if self.checked and ui.confirm( "It is strongly discouraged to use the static runtime library if you are using Lua binary modules.\nThis can lead to bugs and crashes of your application.\n\nPlease confirm that you want to use the static runtime library.", "Using static LuaRT runtime") == "cancel" then
-        self.checked = false
-        radiodynamic.checked = true
-    end
-    modules.enabled = radiodynamic.checked;
-end
-
 function win:onClose()
     sys.exit()
 end
@@ -132,9 +119,7 @@ else
     target = "luart"
 end
 
-if radiostatic.checked then
-    target = target.."-static"
-end
+static = radiostatic.checked
 
 local libs = {}
 for mod in modules.text:gmatch("(%w+)") do

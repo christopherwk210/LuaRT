@@ -90,8 +90,9 @@ static const char *searchpath (lua_State *L, const char *name,
     filename = luaL_gsub(L, filename, "\\", "/");
     if (filename[0] == '.' && filename[1] == '/')
       filename += 2; 
-    CharLowerA(filename);
-    if ((zip_entry_open(fs, filename) == 0))  /* does file exist and is readable? */
+    CharLowerA((char *)filename);
+    if ((zip_entry_open(fs, filename) == 0))
+      /* does file exist and is readable? */
       return lua_pushstring(L, filename);  /* save and return name */
   }
   luaL_pushresult(&buff);  /* push path to create error message */
@@ -143,7 +144,7 @@ found:
     lua_concat(L, 2);
     if (zip_entry_open(fs, filename) == 0) { 
       wchar_t *tmp = lua_towstring(L, -1);
-      if ((GetFileAttributesW(tmp) != 0xFFFFFFFF) || (make_path(tmp) && (zip_entry_fread(fs, lua_tostring(L, -1)) == 0))) {
+      if ((make_path(tmp) && (zip_entry_fread(fs, lua_tostring(L, -1)) == 0))) {
         HMODULE hm;
               
         if ( (hm = LoadLibraryExW(tmp, NULL, DONT_RESOLVE_DLL_REFERENCES)) ) {
@@ -259,6 +260,8 @@ LUA_METHOD(embed, File) {
 }
 
 LUA_METHOD(embed, sysFile) {
+  if (!lua_isstring(L, 1))
+    luaL_error(L, "Bad argument #2 (string expected, found %s)", luaL_typename(L, 2));
   embed_File(L);
   if (!lua_toboolean(L, -1)) {
     lua_pushvalue(L, 1);
