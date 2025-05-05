@@ -15,11 +15,10 @@ extern "C" {
 #include <luart.h>
 #include <windows.h>
 
-typedef struct _Task Task;
 
 typedef enum { TRunning, TCreated, TSleep, TWaiting, TTerminated } TaskStatus;
 
-typedef struct _Task {
+struct Task {
 	luart_type	type;
 	lua_State 	*L;
 	Task		*from;
@@ -30,9 +29,7 @@ typedef struct _Task {
 	ULONGLONG	sleep;
 	void		*userdata;
 	lua_CFunction gc_func;
- } Task;
-
-LUA_API luart_type TTask;
+ };
 
 //---------------------------------------- Task object
 LUA_CONSTRUCTOR(Task);

@@ -23,8 +23,6 @@ typedef struct {
 	wchar_t		*name;
 } COM;
 
-LUA_API luart_type TCOM;
-
 //---------------------------------------- COM type
 LUA_CONSTRUCTOR(COM);
 extern const luaL_Reg COM_methods[];

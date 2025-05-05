@@ -19,8 +19,6 @@ extern const char *checkFilename(lua_State *L, int idx);
 
 //---------------------------------------- Zip type
 
-LUA_API luart_type TZip;
-
 typedef struct {
 	luart_type		type;
 	struct zip_t	*zip;

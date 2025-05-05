@@ -15,6 +15,7 @@
 
 #include "lrtapi.h"
 #include <luart.h>
+#include <Task.h>
 #include <stdlib.h>
 #include <windows.h>
 #include <io.h>

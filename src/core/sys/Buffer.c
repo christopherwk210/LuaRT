@@ -19,17 +19,17 @@
 luart_type TBuffer;
 static const char* encodings[] = { "utf8", "unicode", "base64", "hex", NULL };
 
-LUA_API Buffer *luart_tobuffer(lua_State *L, int idx) {
+LUA_API Buffer *lua_toBuffer(lua_State *L, int idx) {
 	if (lua_isstring(L, idx)) {
 		size_t len;
 		const char *str = lua_tolstring(L, idx, &len);
-		lua_toBuffer(L,(void *)str, len);
+		lua_pushBuffer(L,(void *)str, len);
 		idx = -1;
 	}
 	return luaL_checkcinstance(L, idx, Buffer);
 }
 
-LUA_API void lua_toBuffer(lua_State *L, void *p, size_t len) {
+LUA_API void lua_pushBuffer(lua_State *L, void *p, size_t len) {
 	Buffer b;
 	b.bytes = p;
 	b.size = len;

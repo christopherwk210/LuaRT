@@ -31,7 +31,7 @@ LUA_METHOD(compression, deflate) {
 	result = compress2(buff+sizeof(size_t), &cmp_len, str, len, (int)luaL_optinteger(L, 2, MZ_DEFAULT_COMPRESSION));
 	if ( result == Z_OK ) {
 		*((size_t *)buff) = len;
-		lua_toBuffer(L, buff, cmp_len+sizeof(size_t));
+		lua_pushBuffer(L, buff, cmp_len+sizeof(size_t));
 	}
 	free(buff);
 	return result == Z_OK;
@@ -44,7 +44,7 @@ LUA_METHOD(compression, inflate) {
 	unsigned char *buff = malloc(uncmp_len);
 	int result = uncompress(buff, &uncmp_len, str+sizeof(size_t), len);
 	if ( result == Z_OK )
-		lua_toBuffer(L, buff, uncmp_len);
+		lua_pushBuffer(L, buff, uncmp_len);
 	free(buff);
 	return result == Z_OK;
 }

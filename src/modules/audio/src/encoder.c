@@ -1,4 +1,5 @@
 #include "encoder.h"
+#include "mfreadwrite.h"
 
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mf.lib")

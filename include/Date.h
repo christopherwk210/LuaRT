@@ -29,7 +29,6 @@ typedef struct {
 	SYSTEMTIME	*st;
 } Datetime;
 
-LUA_API luart_type TDatetime;
 LUA_API LCID locale;
 
 LUA_CONSTRUCTOR(Datetime);

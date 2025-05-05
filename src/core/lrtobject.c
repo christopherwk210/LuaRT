@@ -447,7 +447,7 @@ int lua_registerobject(lua_State *L, int *type, const char *typename, lua_CFunct
 
 int lua_createinstance(lua_State *L, int idx) {
 	if (!lua_istable(L, idx))
-		luaL_argerror(L, 1, "object expected");
+		luaL_typeerror(L, 1, "object or table");
 	lua_registerobject(L, NULL, NULL, NULL, NULL, NULL);
 	return 1;
 }
@@ -552,18 +552,18 @@ void *lua_iscinstance(lua_State *L, int idx, luart_type t) {
 
 lua_Integer lua_registerevent(lua_State *L, const char *methodname, lua_Event event) {
 	luaL_getsubtable(L, LUA_REGISTRYINDEX, "LuaRT Events");
-	WM_LUAMAX += luaL_len(L, -1)+1;
+	*WM_LUAMAX += luaL_len(L, -1)+1;
 	if (methodname)
 		lua_pushstring(L, methodname);
 	else lua_pushlightuserdata(L, event);
-	lua_rawseti(L, -2, WM_LUAMAX);
+	lua_rawseti(L, -2, *WM_LUAMAX);
 	lua_pop(L, 1);
-	return WM_LUAMAX;
+	return *WM_LUAMAX;
 }
 
 void *lua_getevent(lua_State *L, lua_Integer eventid, int *type) {
 	char *methodname = NULL;
-	if (eventid <= WM_LUAMAX) {
+	if (eventid <= *WM_LUAMAX) {
 		luaL_getsubtable(L, LUA_REGISTRYINDEX, "LuaRT Events");
 		if ( (*type = lua_rawgeti(L, -1, eventid)) == LUA_TSTRING ) {		
 			methodname = (char *)lua_tostring(L, -1);
@@ -577,11 +577,4 @@ void *lua_getevent(lua_State *L, lua_Integer eventid, int *type) {
 	return methodname;
 }
 
- //------ Helpers for Widgets in LuaRT binary modules
-lua_Integer			WM_LUAMAX = WM_USER + 1;
-WIDGET_INIT 		lua_widgetinitialize = NULL;
-WIDGET_CONSTRUCTOR	lua_widgetconstructor = NULL;
-WIDGET_DESTRUCTOR	lua_widgetdestructor = NULL;
-WIDGET_PROC			lua_widgetproc = NULL;
-luaL_Reg 			*WIDGET_METHODS = NULL;
 luart_type			TWidget = 0;

@@ -51,7 +51,7 @@ static const crypt_Reg hash_funcs[] = {
 static int hash(lua_State *L, ALG_ID algo)
 {
 	HCRYPTHASH hash;
-	Buffer *buff = luart_tobuffer(L, 2);
+	Buffer *buff = lua_toBuffer(L, 2);
 	DWORD len = 0;
 	int result = 0;
 
@@ -60,7 +60,7 @@ static int hash(lua_State *L, ALG_ID algo)
 			if (CryptGetHashParam(hash, HP_HASHVAL, NULL, &len, 0)) {
 				BYTE* buff = malloc(len);
 				if (CryptGetHashParam(hash, HP_HASHVAL, buff, &len, 0)) {
-					lua_toBuffer(L, buff, len);
+					lua_pushBuffer(L, buff, len);
 					result = 1;
 				}
 				free(buff);
@@ -79,7 +79,7 @@ LUA_METHOD(crypto, generate) {
 	size_t size = luaL_checkinteger(L, 1);
 	BYTE *buff = malloc(sizeof(BYTE)*size);
 	CryptGenRandom(hProv, size, buff);
-	lua_toBuffer(L, buff, size);
+	lua_pushBuffer(L, buff, size);
 	return 1;
 }
 

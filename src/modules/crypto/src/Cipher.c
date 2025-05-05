@@ -8,8 +8,8 @@
 
 #include <luart.h>
 #include <Cipher.h>
-#include <Buffer.h>
 #include <stdlib.h>
+#include <Buffer.h>
 
 luart_type TCipher;
 
@@ -182,7 +182,7 @@ LUA_PROPERTY_GET(Cipher, encrypted) {
 				cipher->esize += length;
 		}
 	}
-	lua_toBuffer(L, cipher->ebuff, cipher->esize);
+	lua_pushBuffer(L, cipher->ebuff, cipher->esize);
 	return 1;
 }
 
@@ -208,7 +208,7 @@ err:				lua_pushboolean(L, FALSE);
 		}
 	}
 	cipher->decrypted = TRUE;
-	lua_toBuffer(L, cipher->dbuff, cipher->dsize);
+	lua_pushBuffer(L, cipher->dbuff, cipher->dsize);
 	return 1;
 }
 

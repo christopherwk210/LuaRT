@@ -32,8 +32,6 @@ typedef struct {
 	int			mode;
 } File;
 
-LUA_API luart_type TFile;
-
 typedef enum { ASCII, UTF8, _UNICODE } Encoding;
 
 //---------------------------------------- Console.stdout get property
@@ -73,8 +71,6 @@ LUA_PROPERTY_SET(File, hidden);
 LUA_PROPERTY_SET(File, created);
 LUA_PROPERTY_SET(File, modified);
 LUA_PROPERTY_SET(File, accessed);
-
-LUA_API wchar_t *luaL_checkFilename(lua_State *L, int idx);
 
 //---------------------------------------- TemporaryFile type
 LUA_CONSTRUCTOR(TemporaryFile);

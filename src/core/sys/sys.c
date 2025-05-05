@@ -455,7 +455,7 @@ LUA_METHOD(reg, read) {
 														}
 													} 
 												}	break;
-					case REG_BINARY:			lua_pushbuffer(L, buff, size);
+					case REG_BINARY:			lua_pushBuffer(L, buff, size);
 				}
 			}
 			free(buff);
