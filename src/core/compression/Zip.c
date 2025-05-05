@@ -14,6 +14,7 @@
 #include <Buffer.h>
 #include "lrtapi.h"
 #include <luart.h>
+#include <Task.h>
 
 #include <stdio.h>
 #include <wchar.h>
@@ -41,6 +42,17 @@ char *checkEntry(lua_State *L, int idx, luart_type t) {
 		default:			luaL_argerror(L, idx, "string or File");
 	}
 	return str;
+}
+
+static char *normalize(const char *str) {
+	char *result = strdup(str);
+	char *ptr = result;
+	while (*ptr) {
+        if (*ptr == '\\')
+            *ptr = '/';
+        ptr++;
+    }
+	return result;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -259,12 +271,13 @@ static size_t on_extract(void *arg, unsigned long long offset, const void *data,
 LUA_METHOD(Zip, read) {
 	Zip *z = lua_self(L, 1, Zip);
 	luaL_Buffer b;
+	char *entry = normalize(luaL_checkstring(L, 2));
 	
 	lua_pushboolean(L, FALSE);
 	if (z->mode != 'r')
 		luaL_error(L, "cannot read a Zip archive opened in write/append mode");
 	
-	if (zip_entry_open(z->zip, luaL_checkstring(L, 2)) == 0) {
+	if (zip_entry_open(z->zip, entry) == 0) {
 		if (!zip_entry_isdir(z->zip)) {
 			luaL_buffinit(L, &b);
 			if (zip_entry_extract(z->zip, on_extract, &b) == 0) {
@@ -274,6 +287,7 @@ LUA_METHOD(Zip, read) {
 		} else zip_set_last_error(z->zip, MZ_ZIP_FILE_NOT_FOUND);
 		zip_entry_close(z->zip);
 	}
+	free(entry);
 	return 1;
 }
 
@@ -297,7 +311,6 @@ uint64_t extract_zip(struct zip_t *z, const char *dir) {
 		}
 		strncpy(fname, name, size);
 		slen = size;
-		// wfname = utf8_towchar(fname, &slen);
 		fname[slen-1] = 0;
 		for (i = 0; i < slen; i++) {
 			if (fname[i] == '/') {
@@ -307,7 +320,7 @@ uint64_t extract_zip(struct zip_t *z, const char *dir) {
 				fname[i] = L'\\';
 			}
 		}
-		if ( !zip_entry_isdir(z) )
+		if ( !zip_entry_isdir(z) ) 
 			success = (zip_entry_fread(z, fname) == 0);
 		count++;
 next:
@@ -318,8 +331,17 @@ next:
 }
 
 static wchar_t *prep_destdir(lua_State *L, int idx) {
-	wchar_t *dir = lua_isstring(L, idx) ? lua_towstring(L, idx): _wcsdup(luaL_checkcinstance(L, idx, Directory)->fullpath);
+	wchar_t *dir = luaL_checkDirname(L, idx);
 	wchar_t *oldpath = GetCurrentDir();
+	size_t len = wcslen(dir);
+
+	if (dir[len-1] != L'\\') {
+		wchar_t * new = (wchar_t *)calloc(len + sizeof(wchar_t), sizeof(wchar_t));
+		wcscpy(new, dir);
+		free(dir);
+		dir = new;
+		dir[len] = L'\\';
+	}    
 	make_path(dir);
 	SetCurrentDirectoryW(dir);
 	free(dir);
@@ -331,7 +353,7 @@ LUA_METHOD(Zip, extract)
 	Zip *z = lua_self(L, 1, Zip);
 	size_t len;
 	int narg = lua_gettop(L);
-	const char *name = lua_tolstring(L, 2, &len);
+	char *name = normalize(luaL_checklstring(L, 2, &len));
 	BOOL include_path = narg > 3 ? lua_toboolean(L, 4) : TRUE;
 	wchar_t *oldpath = NULL, *wfname = lua_towstring(L, 2);
 	char *dname = calloc(1, len+2);
@@ -365,6 +387,7 @@ done:			lua_pushstring(L, name);
 		goto dir;
 	free(wfname);
 	free(dname);
+	free(name);
 	if (oldpath) {
 		SetCurrentDirectoryW(oldpath);
 		free(oldpath);
@@ -392,7 +415,7 @@ typedef struct {
 	HANDLE thread;
 	struct zip_t* zip;
 	uint64_t result;
-	const char *name;
+	char *name;
 	BOOL extractall;
 	char *dir;
 	BOOL find_fname;
@@ -403,6 +426,10 @@ static Extract_gc(lua_State *L) {
 	asyncZip *z= (asyncZip*)lua_self(L, 1, Task)->userdata;
 	CloseHandle(z->thread);
 	free(z->oldpath);
+	if (z->dir)
+		free(z->dir);
+	if (z->name)
+		free(z->name);
 	free(z);
 	return 0;
 }
@@ -410,7 +437,7 @@ static Extract_gc(lua_State *L) {
 static int ZipTaskContinue(lua_State* L, int status, lua_KContext ctx) {
     asyncZip *z = (asyncZip *)ctx;
 
-    if ( WaitForSingleObject(z->thread, 0) == WAIT_OBJECT_0) {
+    if (WaitForSingleObject(z->thread, 0) == WAIT_OBJECT_0) {
 		lua_pushboolean(L, FALSE);
 		if (z->dir) {
 			if (z->result) {
@@ -492,38 +519,33 @@ LUA_METHOD(Zip, extract_async) {
 	asyncZip *z;
 	size_t len;
 	int narg = lua_gettop(L);
-	const char *name = lua_tolstring(L, 1, &len);
-	BOOL include_path = narg > 2 ? lua_toboolean(L, 3) : TRUE;
+	char *name = normalize(lua_tolstring(L, 1, &len));
+	BOOL include_path = narg > 2 ? lua_toboolean(L, 3) : FALSE;
 	wchar_t *fname = lua_towstring(L, 1);
-	char *dname = calloc(1, len+2);
 	Zip *zip = lua_self(L, lua_upvalueindex(1), Zip);
 
 	if (zip->mode != 'r')
-		luaL_error(L, "cannot extract from a Zip archive opened in write/append mode");
+		luaL_error(L, "cannot extract a Zip archive opened in write/append mode");
 	z = calloc(1, sizeof(asyncZip));
 	z->zip = zip->zip;
-	strncpy(dname, name, len);
-	dname[len] = '/';	
-	if (narg > 2)
+	if (narg >= 2)
 		z->oldpath = prep_destdir(L, 2);
 	if (zip_entry_open(z->zip, name) == 0) {
-dir:	if (zip_entry_isdir(z->zip)) {
-			z->dir = dname;
-		} else {
-			z->name = name;
-			if (include_path) {
+		if (zip_entry_isdir(z->zip))
+			z->dir = strdup(name);
+		else {
+			z->name = strdup(name);
+			if (include_path)
 				make_path(fname);
-			} else if (zip_entry_fread(z->zip, PathFindFileNameA(name)) == 0) {
-				z->find_fname = TRUE;
-			}
+			else z->find_fname = TRUE;
 		} 
-	} else if (zip_entry_open(z->zip, dname) == 0)
-		goto dir;
-	if (!z->dir) {
-		free(dname);
+	} else {
 		lua_pushboolean(L, FALSE);
-	} else 
-		push_ZipTask(L, z, extractThread);
+		goto done;
+	}
+	push_ZipTask(L, z, extractThread);
+done:
+	free(name);
 	free(fname);
 	return 1;
 }
