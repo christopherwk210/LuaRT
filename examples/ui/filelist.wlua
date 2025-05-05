@@ -35,15 +35,21 @@ function FileList:constructor(parent, path, ...)
       else
         files[#files+1] = item
       end
+      sleep()
     end
     list:clear()
     self:append(dir)
-    sleep()
     self:append(files)
   end
   
   function list:append(dir)
+    local i = 1
     for entry in each(dir) do
+      i = i + 1
+      if i == 32 then -- sleep() only each 32 entry to speedup
+        i = 1
+        sleep()
+      end
       local item = self:add(entry.name)
       item:loadicon(entry.fullpath)
     end

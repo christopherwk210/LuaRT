@@ -1,39 +1,26 @@
-local ui = require("ui")
+local ui = require "ui"
 require "canvas"
 
-local win = ui.Window("Mouse button down/up example",800,600)
-local canvas = ui.Canvas(win)
+ui.theme = "light"
 
-canvas.align = "all"
-canvas.cursor = "cross"
+local win = ui.Window("Mouse example", 640, 480)
+local c = ui.Canvas(win)
+c.align = "all"
+c.cursor = "cross"
+local lastx
+local lasty
 
-local draw = false
-local px, py, lastx, lasty
-
-function canvas:onPaint()
-    if draw then
-        self:line(lastx or px, lasty or py, px, py, 0x8c1affff, 3)
-        lastx = px
-        lasty = py
-
-    end
-end
-
-function canvas:onHover(x, y)
-    px = x
-    py = y
-end
-
-function canvas:onMouseDown(button)
-    draw = button == "left"
-end
-
-function canvas:onMouseUp(button, x, y)
-    draw = button ~= "left"
-    if not draw then
+function c:onHover(x, y, buttons)
+	c:begin()
+	if not buttons or buttons.left then	
+		self:line(lastx or x, lasty or y, x, y, 0x8c1affff, 3)
+        lastx = x
+        lasty = y	
+    else
         lastx = nil
         lasty = nil
-    end
+	end
+	c:flip()
 end
 
 ui.run(win):wait()

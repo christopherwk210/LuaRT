@@ -7,7 +7,7 @@ local word = sys.COM("Word.Application")
 local doc = word.Documents:Add()
 local sel = word.Selection
 
-sel.Paragraphs.Alignment = 1
+sel.Paragraphs.Alignment = word.wdAlignParagraphCenter
 sel.Font.Name = "Calibri"
 sel.Font.Size = "72"
 sel.Font.Color = 0x800000
@@ -18,4 +18,4 @@ doc:SaveAs(sys.currentdir.."\\test.doc")
 word:Quit()
 
 -- Open the document using MS Word
-require("sysutils").shellexec("open", sys.currentdir.."\\test.doc")
+require("sysutils").shellexec("open", "test.doc")

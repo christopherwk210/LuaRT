@@ -3,7 +3,7 @@ local console = require 'console'
 
 
 console.write("Use TLS/SSL encryption [Y/N] ? ")
-local use_encryption = console.read(1):upper() == "Y" and true or false
+local use_encryption = console.read():upper() == "Y" and true or false
 
 if net.isalive then
 	console.writecolor("cyan", use_encryption and "\nConnecting to https://www.google.com..." or "\nConnecting to http://www.google.com...")

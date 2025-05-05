@@ -6,6 +6,7 @@ local net = require "net"
 local compression = require "compression"
 
 -- Download LuaRT 1.8.0 x64 from GitHub
+print("Downloading LuaRT 1.8.0...")
 local client, response = await(net.Http("https://github.com"):download("/samyeyo/LuaRT/releases/download/v1.8.0/LuaRT-1.8.0-x64.zip"))
 if response.status ~= 200 then
     error(net.error)
