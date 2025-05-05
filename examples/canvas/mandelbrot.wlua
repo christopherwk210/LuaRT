@@ -45,8 +45,12 @@ function c:onPaint()
       col = col + 1
     end
     row = row + 1
+    if row % 50 == 0 then
+      self:flip()
+      sleep()
+      self:begin()
+    end
   end
-  self:flip()
 end
 
 ui.run(win):wait()
