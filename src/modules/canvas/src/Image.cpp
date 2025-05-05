@@ -58,10 +58,29 @@ LUA_METHOD(Image, draw) {
     return 0;
 }
 
+LUA_METHOD(Image, drawsub) {
+    Image *img = lua_self(L, 1, Image);
+    const D2D1_SIZE_U size = img->Bitmap->GetPixelSize();
+    float x = static_cast<FLOAT>(luaL_checknumber(L, 2));
+    float y = static_cast<FLOAT>(luaL_checknumber(L, 3));    
+    float subx = static_cast<FLOAT>(luaL_checknumber(L, 4));    
+    float suby = static_cast<FLOAT>(luaL_checknumber(L, 5));    
+    float subw = static_cast<FLOAT>(luaL_checknumber(L, 6));    
+    float subh = static_cast<FLOAT>(luaL_checknumber(L, 7));   
+    subw = subw > size.width ? size.width : subw; 
+    subh = subh > size.height ? size.height : subh; 
+    img->d->DCRender->DrawBitmap(img->Bitmap, D2D1::RectF(x, y, x+subw, y+subh), luaL_optnumber(L, 8, 1.0f), (D2D1_BITMAP_INTERPOLATION_MODE)luaL_checkoption(L, 9, "nearest", interpolation), D2D1::RectF(subx, suby, subx+subw, suby+subh));
+    return 0;
+}
+
 LUA_METHOD(Image, drawrect) {
     Image *img = lua_self(L, 1, Image);
+    float x = static_cast<FLOAT>(luaL_checknumber(L, 2));
+    float y = static_cast<FLOAT>(luaL_checknumber(L, 3));
+    float w = static_cast<FLOAT>(luaL_checknumber(L, 4));
+    float h = static_cast<FLOAT>(luaL_checknumber(L, 5));
    
-    img->d->DCRender->DrawBitmap(img->Bitmap, D2D1::RectF(static_cast<FLOAT>(luaL_checknumber(L, 2)), static_cast<FLOAT>(luaL_checknumber(L, 3)), static_cast<FLOAT>(luaL_checknumber(L, 4)), static_cast<FLOAT>(luaL_checknumber(L, 5))), luaL_optnumber(L, 6, 1.0f), (D2D1_BITMAP_INTERPOLATION_MODE)luaL_checkoption(L, 7, "nearest", interpolation), NULL);
+    img->d->DCRender->DrawBitmap(img->Bitmap, D2D1::RectF(x, y, w, h), luaL_optnumber(L, 6, 1.0f), (D2D1_BITMAP_INTERPOLATION_MODE)luaL_checkoption(L, 7, "nearest", interpolation), NULL);
     return 0;
 }
 
@@ -80,6 +99,7 @@ OBJECT_MEMBERS(Image)
     READONLY_PROPERTY(Image, height)
     METHOD(Image, draw)
     METHOD(Image, drawrect)
+    METHOD(Image, drawsub)
 END
 
 LUA_METHOD(Image, __gc) {

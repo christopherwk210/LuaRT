@@ -24,6 +24,7 @@ UINT on_MouseDown;
 UINT on_MouseClick;
 UINT on_MouseUp;
 UINT on_Paint;
+UINT on_MouseWheel;
 
 //--- Brush table helpers
 const char *style_values[] = { "normal", "oblique","italic" };
@@ -32,7 +33,6 @@ const char *style_values[] = { "normal", "oblique","italic" };
 LRESULT CALLBACK CanvasProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
   Widget *w = (Widget *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
   Direct2D *d = (Direct2D *)w->user;
-
 
   switch(uMsg) {   
     case WM_PAINT:
@@ -97,6 +97,10 @@ LRESULT CALLBACK CanvasProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, 
 process_event:
         PostMessage(hwnd, on_MouseDown, wParam, lParam);
         return 0;
+      case WM_MOUSEWHEEL: {
+        PostMessage(hwnd, on_MouseWheel, wParam, lParam);
+        return 0;
+      }
   }
   return lua_widgetproc(hwnd, uMsg, wParam, lParam, 0, 0);
 }
@@ -105,6 +109,7 @@ process_event:
 
 static int onPaintContinue(lua_State* L, int status, lua_KContext ctx) {
   Widget *w = (Widget*)ctx;
+
   if (IsWindowVisible((HWND)w->handle)) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, w->ref);
     if (lua_getfield(L, -1, "onPaint") == LUA_TFUNCTION) {
@@ -132,7 +137,7 @@ LUA_CONSTRUCTOR(Canvas)
 	  luaL_error(L, ((Direct2D *)w->user)->error); 
   ((Direct2D *)w->user)->DCRender->BeginDraw();
   ((Direct2D *)w->user)->bgcolor = isdark ? D2D1::ColorF(0.0,0.0,0.0) : D2D1::ColorF(1.0,1.0,1.0);
-  ((Direct2D *)w->user)->DCRender->Clear(((Direct2D *)w->user)->bgcolor);   
+  ((Direct2D *)w->user)->DCRender->Clear(((Direct2D *)w->user)->bgcolor); 
   RedrawWindow(h, NULL, NULL, RDW_UPDATENOW);
   lua_pushtask(L, onPaintContinue, w, NULL);
   lua_pop(L, 1);
@@ -337,6 +342,7 @@ LUA_METHOD(Canvas, measure) {
     lua_setfield(L, -2, "width");
     lua_pushnumber(L, tm.height);
     lua_setfield(L, -2, "height");
+    layout->Release();
     return 1;
   }
   return 0;
@@ -582,8 +588,7 @@ static void push_mouseargs(lua_State *L, Direct2D *d, MSG *msg) {
 
 int event_onHover(lua_State *L, Widget *w, MSG *msg) {
   push_mouseargs(L, (Direct2D*)w->user, msg);
-  lua_throwevent(L, "onHover", 4);
-  return 0;
+  return lua_throwevent(L, "onHover", 4);
 }
 
 int event_onPaint(lua_State *L, Widget *w, MSG *msg) {
@@ -595,20 +600,33 @@ int event_onMouseClick(lua_State *L, Widget *w, MSG *msg) {
   D2D1_POINT_2F point = toDIP((Direct2D*)w->user, GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam));
   lua_pushnumber(L, point.x);
   lua_pushnumber(L, point.y);
-  lua_throwevent(L, "onClick", 3);
-  return 0;
+  return lua_throwevent(L, "onClick", 3);
 }
 
 int event_onMouseDown(lua_State *L, Widget *w, MSG *msg) {
   push_mouseargs(L, (Direct2D*)w->user, msg);
-  lua_throwevent(L, "onMouseDown", 4);
-  return 0;
+  return lua_throwevent(L, "onMouseDown", 4);
 }
 
 int event_onMouseUp(lua_State *L, Widget *w, MSG *msg) {
   push_mouseargs(L, (Direct2D*)w->user, msg);
-  lua_throwevent(L, "onMouseDown", 4);
-  return 0;
+  return lua_throwevent(L, "onMouseDown", 4);
+}
+
+int event_onMouseWheel(lua_State *L, Widget *w, MSG *msg) {
+  lua_pushinteger(L, GET_WHEEL_DELTA_WPARAM(msg->wParam));
+  lua_createtable(L, 0, 5);
+  lua_pushboolean(L, LOWORD(msg->wParam) & MK_CONTROL);
+  lua_setfield(L, -2, "control");
+  lua_pushboolean(L, LOWORD(msg->wParam) & MK_SHIFT);
+  lua_setfield(L, -2, "shift");
+  lua_pushboolean(L, LOWORD(msg->wParam) & MK_RBUTTON);
+  lua_setfield(L, -2, "right");
+  lua_pushboolean(L, LOWORD(msg->wParam) & MK_LBUTTON);
+  lua_setfield(L, -2, "left");
+  lua_pushboolean(L, LOWORD(msg->wParam) & MK_MBUTTON);
+  lua_setfield(L, -2, "middle");
+  return lua_throwevent(L, "onMouseWheel", 3);
 }
 
 OBJECT_MEMBERS(Canvas)
@@ -664,6 +682,7 @@ extern "C" {
         on_MouseDown = lua_registerevent(L, NULL, event_onMouseDown);
         on_MouseUp = lua_registerevent(L, NULL, event_onMouseUp);
         on_MouseClick = lua_registerevent(L, NULL, event_onMouseClick);
+        on_MouseWheel = lua_registerevent(L, NULL, event_onMouseWheel);
         return 0;
     }
 }
