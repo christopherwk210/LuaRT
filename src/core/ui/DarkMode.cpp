@@ -1,6 +1,3 @@
-#ifndef __GNUC__
-	#define WIDGET_IMPLEMENTATION
-#endif
 #include <Widget.h>
 #include "ui.h"
 #include "DarkMode.h"
@@ -12,11 +9,8 @@
 #include <map>
 #include <string>
 #include <Richedit.h>
-#ifndef __GNUC__
-	#include <shellscalingapi.h>
-	#pragma comment(lib, "Shcore.lib")
-#endif
-
+#include <shellscalingapi.h>
+#pragma comment(lib, "Shcore.lib")
 
 extern "C" {	
 	BOOL g_darkModeSupported = FALSE;
@@ -492,6 +486,13 @@ extern "C" {
 		return DefSubclassProc(hWnd, uMsg, wParam, lParam);
 	}
 
+	COLORREF GetBrushColor(HBRUSH hBrush) {
+		LOGBRUSH logBrush;
+		if (GetObject(hBrush, sizeof(LOGBRUSH), &logBrush) && (logBrush.lbStyle == BS_SOLID))
+			return logBrush.lbColor;
+		return 0; 
+	}
+
 	LRESULT GroupBoxSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hwnd, &ps);
@@ -499,29 +500,31 @@ extern "C" {
 		RECT r = {0}, rt;
 		Widget *wp = (Widget*)GetWindowLongPtr(GetParent(hwnd), GWLP_USERDATA);
 		RECT rect;
-		static COLORREF frame = GetSysColor(COLOR_ACTIVEBORDER);
+		COLORREF col = GetBrushColor(wp->brush);
+		BOOL light = (0.299 * GetRValue(col) + 0.587 * GetGValue(col) + 0.114 * GetBValue(col)) > 128;
 
 		GetClientRect(hwnd, &rect);
 		SelectObject(hdc, w->font);
 		int len = GetWindowTextLengthW(hwnd);
 		wchar_t *buff = (wchar_t *)malloc((len + 1)*sizeof(wchar_t));
+
 		GetWindowTextW(hwnd, buff, len + 1);
 		DrawTextW(hdc, buff, -1, &r, DT_SINGLELINE | DT_CALCRECT);
 		HPEN old = (HPEN)SelectObject(hdc, GetStockPen(DC_PEN));
-		SetDCPenColor(hdc,  DarkMode ? 0x848484 : frame);
-		SelectObject(hdc, w->brush);
-		FillRect(hdc, &rect, w->brush);
+		SetDCPenColor(hdc, light ? 0xD4D4D4 : 0x848484);
+		SelectObject(hdc, wp->brush);
+		FillRect(hdc, &rect, wp->brush);
 		Rectangle(hdc, rect.left+4, ++rect.top+r.bottom/2, rect.right-4, rect.bottom-r.bottom/2);
 		SelectObject(hdc, old);
 		if (len) {
 			r.left = 10;
 			r.right += 11;
 			r.bottom -= r.top;
-			SetBkColor(hdc, DarkMode ? 0 : GetSysColor(COLOR_BTNFACE));
-			SetTextColor(hdc, DarkMode ? 0xFFFFFF : 0);
+			SetBkColor(hdc, col);
+			SetTextColor(hdc, light ? 0 : 0xE0E0E0);
 			rt = r,
 			rt.left = 8;			
-			FillRect(hdc, &rt, w->brush);
+			FillRect(hdc, &rt, wp->brush);
 			DrawTextW(hdc, buff, -1, &r, DT_SINGLELINE);
 		}
 		free(buff);
@@ -608,10 +611,7 @@ extern "C" {
 		HDC hdc = GetDC((HWND)w->handle);
 		GetClientRect((HWND)w->handle, &r);
 		COLORREF cr;
-		LOGBRUSH lbr;
-		GetObject(pbrush, sizeof(lbr), &lbr);
-		HBRUSH c = CreateSolidBrush(lbr.lbColor);
-		SelectObject(hdc, c);
+		SelectObject(hdc, pbrush);
 		int sel = TabCtrl_GetCurSel((HWND)w->handle);
 		for (int i = 0; i < count; i++) {
 			if (i != sel) {
@@ -620,7 +620,6 @@ extern "C" {
 				ExtFloodFill(hdc, rr.left+r.left+10*GetDPIForSystem(), rr.top+r.top-2, cr, FLOODFILLSURFACE);
 			}
 		}
-		DeleteObject(c);
 		ReleaseDC((HWND)w->handle, hdc);
 		return FALSE;
 	}

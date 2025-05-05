@@ -59,6 +59,7 @@ DWORD uiLayout = 0;
 const char *themes[] = { "light", "dark" };
 HBRUSH DARK_BRUSH;
 HBRUSH CBDARK_BRUSH;
+lua_Integer MAX_EVENTS = WM_USER + 1;
 
 BOOL SaveImg(wchar_t *fname, HBITMAP hBitmap) {
 	BITMAP Bitmap;
@@ -488,58 +489,31 @@ extern const char *VKString(int vk);
 
 static WINDOWPOS winpos = {0};
 
-void stackdump(lua_State* L)
-{
-	int top = lua_gettop(L);
-	for (int i = 0; i < top; i++) {
-		int positive = top - i;
-		int negative = -(i + 1);
-		int type = lua_type(L, positive);
-		int typeN = lua_type(L, negative);
-		const char* typeName = lua_typename(L, type);
-		printf("%d/%d: type=%s", positive, negative, typeName);
-		switch (type) {
-			case LUA_TNUMBER:
-				printf(" value=%f", lua_tonumber(L, positive));
-				break;
-			case LUA_TSTRING:
-				printf(" value=%s", lua_tostring(L, positive));
-				break;
-			case LUA_TFUNCTION:
-				if (lua_iscfunction(L, positive)) {
-					printf(" C:%p", lua_tocfunction(L, positive));
-				}
-				break;
-			default:  printf(" value=%s", luaL_typename(L, positive));
-		}
-		printf("\n");
-	}
-}
-
 #ifdef UI
-LUA_API int do_update(lua_State *L) {
+LUA_API int do_update(lua_State *L)
 #else
-int do_update(lua_State *L) {
+int do_update(lua_State *L)
 #endif
+{
 	Widget *w = NULL;
 	int type, nargs = 0;
 	MSG msg;
 
 	if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-		if ((msg.message >= WM_LUAMIN) && (msg.message <= WM_LUAMAX)) {
+		if ((msg.message >= WM_LUAMIN) && (msg.message <= MAX_EVENTS)) {
 			int n = lua_gettop(L);
 			if (msg.hwnd) {
 				if (!(w = (Widget*)GetWindowLongPtr(msg.hwnd, GWLP_USERDATA)))
 					goto do_msg; //--- private control msg
 				if (lua_rawgeti(L, LUA_REGISTRYINDEX, w->ref) != LUA_TTABLE)
-					return 0;
+					return TRUE;
 				else {
 					const char *methodname = lua_getevent(L, msg.message, &type);
 					if (type == LUA_TLIGHTUSERDATA) {
 						lua_Event ev = lua_touserdata(L, -1);
 						lua_pop(L, 1);
 						int count = ev(L, w, &msg);
-						goto do_msg;
+						return count;
 					} else if (lua_getfield(L, -1, methodname)) {
 			            lua_pushinstance(L, Task, 1);
 						lua_remove(L, -2);
@@ -654,7 +628,7 @@ int do_update(lua_State *L) {
 				if (lua_pcall(L, nargs, 0, 0))
 					lua_error(L);
 				lua_pop(L, 1);
-				return 0;
+				return TRUE;
 			} else goto do_msg;
 			if ((nargs = lua_gettop(L)-n-1) || lua_isfunction(L, -1)) {
 				if (lua_pcall(L, nargs, LUA_MULTRET, 0))
@@ -694,7 +668,7 @@ int do_update(lua_State *L) {
 					if (w && (w->wtype != UIEdit)) {
 						SetFocus(GetNextDlgTabItem(parent, msg.hwnd, GetAsyncKeyState(VK_SHIFT) & 0x8000 ? TRUE : FALSE));
 						lua_paramevent(wp, onKey, VKString(VK_TAB), VK_TAB);
-						return 0;
+						return TRUE;
 					}
 				}
 				if (TranslateAcceleratorW(wp->handle, wp->accel_table, &msg))
@@ -705,7 +679,7 @@ dispatch:	DispatchMessage(&msg);
 		}
 		lua_pop(L, lua_gettop(L));
 	}
-	return 0;
+	return TRUE;
 }
 
 LUA_METHOD(ui, update) {
@@ -1278,7 +1252,7 @@ MODULE_FUNCTIONS(ui)
 END
 
 /* ------------------------------------------------------------------------ */
-int luaopen_ui(lua_State *L) {
+extern int luaopen_ui(lua_State *L) {
 	WNDCLASSEX wcex = {0};
 	DWORD dwLayout;
 	int i = -1;
@@ -1299,8 +1273,10 @@ int luaopen_ui(lua_State *L) {
     if (GetProcessDefaultLayout(&dwLayout))
        uiLayout = dwLayout == LAYOUT_RTL ? WS_EX_LAYOUTRTL : 0;
 
+	WM_LUAMAX = &MAX_EVENTS;
 	while (events[++i])
 		lua_registerevent(L, events[i], NULL);
+
 	lua_regmodulefinalize(L, ui);
 	RegisterWidget(L, &UIWindow, "Window", Window_constructor, Window_methods, Window_metafields, FALSE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, TRUE);
 	RegisterWidget(L, &UIButton, "Button", Button_constructor, hastext_methods, NULL, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE);

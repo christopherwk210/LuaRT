@@ -8,7 +8,6 @@
 
 
 
-#include "lrtapi.h"
 #include <luart.h>
 #include <Widget.h>
 #include "ui.h"
@@ -53,7 +52,7 @@ static void SetMenuItem(lua_State *L, HMENU menu, int idx, wchar_t *str, HBITMAP
 	}
 	if (!SetMenuItemInfoW(menu, idx == -1 ? GetMenuItemCount(menu)-1 : idx, TRUE, &mi)) {
 		luaL_getlasterror(L, GetLastError());
-		printf("SetMenuItemInfo error : %s ", lua_tostring(L, -1));
+		luaL_error(L, "SetMenuItemInfo error : %s ", lua_tostring(L, -1));
 	}
 	free(str);
 }

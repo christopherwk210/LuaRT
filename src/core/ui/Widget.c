@@ -6,7 +6,6 @@
  | Widget.c | LuaRT Widget object implementation
 */
 
-
 #include <luart.h>
 #include <Widget.h>
 #include "ui.h"
@@ -79,22 +78,23 @@ void page_resize(Widget *w, BOOL isfocused) {
 	int count = get_count(w);
 	RECT r, rr;
 	double hfactor;
+	int y = 0;
 
 	if (count) {
 		TabCtrl_GetItemRect(w->handle, 0, &rr);
-		hfactor = rr.bottom-rr.top+5;
-	} else hfactor =  24.25*dpi; 
+		y = rr.bottom-rr.top+3+dpi;
+	} else y = 24.25*dpi; 
 	GetClientRect(w->handle, &r);
-	int width = r.right-r.left-(DarkMode ? 3 : 6)*dpi;
-	int height = r.bottom-r.top-hfactor-dpi;
+	int width = r.right-r.left-(DarkMode ? 1 : 2)*dpi;
+	int height = r.bottom-r.top-y-dpi;
 	if (w->user) {
-		SetWindowPos(w->user, NULL, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER);
+		SetWindowPos(w->user, NULL, 1, y, width, height, SWP_NOZORDER);
 		BringWindowToTop(w->user);
 	}
 	else {
 		for (int i = 0; i < count; i++) {
 			TCITEMW *page = __get_item(w, i, NULL);
-			SetWindowPos((HWND)page->lParam, NULL, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER);
+			SetWindowPos((HWND)page->lParam, NULL, 1, y, width, height, SWP_NOZORDER);
 			EnumChildWindows((HWND)page->lParam, ResizeChilds, (LPARAM)page->lParam);
 			free(page->pszText);
 			free(page);	
@@ -169,7 +169,6 @@ int ProcessUIMessage(HWND hwnd, Widget *w, UINT uMsg, WPARAM wParam, LPARAM lPar
 						lua_callevent(w, onChange);
 						InvalidateRect(w->handle, NULL, TRUE);
 						SetFocus(GetParent(w->handle));
-						// SendMessageW(w->handle, WM_UPDATEUISTATE, MAKEWPARAM(UIS_SET,UISF_HIDEFOCUS), 0);
 						free(text);
 						UpdateWindow(GetParent(w->handle));
 						lua_indexevent(w, onSelect, idx);
@@ -179,7 +178,6 @@ int ProcessUIMessage(HWND hwnd, Widget *w, UINT uMsg, WPARAM wParam, LPARAM lPar
 				return TRUE;	
 			}						
 		} break;
-
 		case WM_LBUTTONUP:
 		case WM_MBUTTONUP:
 		case WM_RBUTTONUP:
@@ -390,10 +388,10 @@ notify:		if ((w->wtype == UIEdit) && (lpNmHdr->code == EN_SELCHANGE)) {
 			break;			
 		case WM_PRINTCLIENT:
 		case WM_ERASEBKGND: if (w->wtype == UIGroup) {
-			HDC hdc = (HDC)wParam;
-			RECT rect;
-			GetClientRect(hwnd, &rect);
-			FillRect(hdc, &rect, w->brush);
+				HDC hdc = (HDC)wParam;
+				RECT rect;
+				GetClientRect(hwnd, &rect);
+				FillRect(hdc, &rect, w->brush);
 			*result = TRUE;
 			return TRUE;
 		}
@@ -403,7 +401,7 @@ notify:		if ((w->wtype == UIEdit) && (lpNmHdr->code == EN_SELCHANGE)) {
 				*result = TRUE;
 				return TabSubclassProc(hwnd, uMsg, wParam, lParam, uIdSubclass, (DWORD_PTR)w);
 			}
-			else if (DarkMode && (w->wtype == UIGroup)) {
+			else if ((w->wtype == UIGroup)) {
 				*result = TRUE;
 				return GroupBoxSubclassProc(hwnd, uMsg, wParam, lParam, uIdSubclass, (DWORD_PTR)w);
 			}
@@ -786,7 +784,15 @@ LUA_PROPERTY_SET(Widget, hastext) {
 	SetWindowLong(w->handle, GWL_STYLE, style);
 	if ((style & BS_ICON) == BS_ICON) {
 		SetWindowPos(w->handle, NULL, 0, 0, 24, 24, SWP_NOZORDER | SWP_NOMOVE);
+		if (w->user)
+			free(w->user);
+		int len = GetWindowTextLengthW(w->handle)+1;
+		w->user = calloc(1, len*sizeof(wchar_t));
+		GetWindowTextW(w->handle, w->user, len);
 		SetWindowTextA(w->handle, "");
+	} else {
+		SetWindowPlacement(w->handle, &w->wp);
+		SetWindowTextW(w->handle, w->user);
 	}
 	UpdateWindow(GetParent(w->handle));
 	return 1;		
@@ -1080,6 +1086,7 @@ void UpdateFont(Widget *w, LOGFONTW *l) {
             TabCtrl_GetItem(w->handle, i, &item);
             EnumChildWindows((HWND)item.lParam, SetChildFont, (LPARAM)l); 
         }
+		page_resize(w, FALSE);
     }
     else if (w->wtype == UIGroup || (w->wtype == UIItem && w->item.itemtype == UITab) || (w->wtype == UIWindow) || (w->wtype == UIPanel))
 		EnumChildWindows(w->handle, SetChildFont, (LPARAM)l); 
@@ -1298,9 +1305,13 @@ LUA_METHOD(Widget, loadicon) {
 	else if (w->wtype == UIButton) {
 		double dpi = GetDPIForSystem();
 		result = SendMessage(w->handle, BM_SETIMAGE, IMAGE_ICON, (LPARAM)icon); 
-		SetWindowPos(w->handle, NULL, 0, 0, 24*dpi, 24*dpi, SWP_NOMOVE | SWP_NOZORDER);
-		if (w->autosize)
-			WidgetAutosize(w);
+		if (w->autosize) {
+			if (GetWindowLong(lua_self(L, 1, Widget)->handle, GWL_STYLE) & BS_ICON == BS_ICON) {
+				GetWindowPlacement(w->handle, &w->wp);
+				SetWindowPos(w->handle, NULL, 0, 0, 24*dpi, 24*dpi, SWP_NOMOVE | SWP_NOZORDER);
+			} else
+				WidgetAutosize(w);
+		}
 	}
 	lua_pushboolean(L, result);
 	return 1;
