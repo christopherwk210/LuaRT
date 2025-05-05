@@ -22,8 +22,6 @@
 #include "include\dyncall.h"
 #include "include\dyncall_callf.h"
 
-#define ZIP_SHARED 
-#include "..\..\core\compression\lib\zip.h"
 
 #include <DbgHelp.h>
 #pragma comment(lib, "Dbghelp.lib")
@@ -67,47 +65,46 @@ static BOOL make_path(wchar_t *folder) {
 }
 
 static HMODULE extract_dll(lua_State *L, struct zip_t *fs, const char *filename) {
-	static wchar_t *temp_path = NULL;
+	static wchar_t temp_path[MAX_PATH];
 	HMODULE hm = NULL;
 	
-	if (!temp_path)
-		GetTempPathW(MAX_PATH, temp_path);
+	GetTempPathW(MAX_PATH, temp_path);
     lua_pushwstring(L, temp_path);
     lua_pushstring(L, filename);
     lua_concat(L, 2);
     if (zip_entry_open(fs, filename) == 0) { 
-      wchar_t *tmp = lua_towstring(L, -1);
-      if ((GetFileAttributesW(tmp) != 0xFFFFFFFF) || (make_path(tmp) && (zip_entry_fread(fs, lua_tostring(L, -1)) == 0))) {
-        HMODULE hm;
-              
-        if ( (hm = LoadLibraryExW(tmp, NULL, DONT_RESOLVE_DLL_REFERENCES)) ) {
-          ULONG size;
-          PIMAGE_IMPORT_DESCRIPTOR importDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)ImageDirectoryEntryToDataEx(hm, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &size, NULL);
+      	wchar_t *tmp = lua_towstring(L, -1);
+     	if ((make_path(tmp) && (zip_entry_fread(fs, lua_tostring(L, -1)) == 0))) {
+			if ( (hm = LoadLibraryExW(tmp, NULL, DONT_RESOLVE_DLL_REFERENCES | LOAD_LIBRARY_AS_DATAFILE)) ) {
+				ULONG size;
+				PIMAGE_IMPORT_DESCRIPTOR importDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)ImageDirectoryEntryToDataEx(hm, TRUE, IMAGE_DIRECTORY_ENTRY_IMPORT, &size, NULL);
 
-          if (importDescriptor)
-            while (importDescriptor->Characteristics && importDescriptor->Name) {
-                PSTR importName = (PSTR)((PBYTE)hm + importDescriptor->Name);
-                if (zip_entry_open(fs, importName) == 0) {
-                  wchar_t *dllpath;
-                  lua_pushwstring(L, temp_path);
-                  lua_pushstring(L, importName);
-                  lua_concat(L, 2);
-                  dllpath = lua_towstring(L, -1);
-                  lua_pop(L, 1);
-                  if (GetFileAttributesW(dllpath) == INVALID_FILE_ATTRIBUTES) {
-                    make_path(dllpath); 
-                    zip_entry_fread(fs, lua_tostring(L, -1));
-                    zip_entry_close(fs);
-                  }
-                  free(dllpath);
-                }
-                importDescriptor++;
-            }
-        }
-      }
-      free(tmp);
-      zip_entry_close(fs);
-    }
+				if (importDescriptor)
+					while (importDescriptor->Characteristics && importDescriptor->Name) {
+						PSTR importName = (PSTR)((PBYTE)hm + importDescriptor->Name);
+						if (zip_entry_open(fs, importName) == 0) {
+							wchar_t *dllpath;
+							lua_pushwstring(L, temp_path);
+							lua_pushstring(L, importName);
+							lua_concat(L, 2);
+							dllpath = lua_towstring(L, -1);
+							lua_pop(L, 1);
+							if (GetFileAttributesW(dllpath) == INVALID_FILE_ATTRIBUTES) {
+								make_path(dllpath); 
+								zip_entry_close(fs);
+								zip_entry_fread(fs, lua_tostring(L, -1));
+							}
+							free(dllpath);
+						}
+						importDescriptor++;
+					}
+				FreeLibrary(hm);
+				hm = LoadLibraryW(tmp);
+			}
+		}
+		free(tmp);
+		zip_entry_close(fs);
+	}	
 	return hm;
 }
 
@@ -115,40 +112,19 @@ static HMODULE extract_dll(lua_State *L, struct zip_t *fs, const char *filename)
 LUA_CONSTRUCTOR(Library) {
 	wchar_t *libname = lua_gettop(L) == 1 ? wcsdup(L"ucrtbase.dll") : luaL_checkFilename(L, 2);
 	Library *l;
-	DLLib *lib = (DLLib *)LoadLibraryW(libname);
-
+	DLLib *lib = NULL;
+	
+	lib = (DLLib *)LoadLibraryW(libname);
 	if (!lib) {
-		lua_Debug ar;
-    	if (lua_getstack(L, 2, &ar)) {
-       		lua_getinfo(L, "S", &ar);
-        	if (ar.source) {
-				const char *path;
-				path = luaL_gsub(L, ar.source, "/", "\\");
-				struct zip_t *zip = (struct zip_t *)luaL_embedopen(L);
-				if (zip) {
-					char *fname = PathFindFileNameA((char*)path);
-					PathRemoveExtensionA(fname);
-					lua_pushstring(L, "@__modules/");
-					lua_pushstring(L, fname);
-					lua_pushstring(L, "/");
-					lua_concat(L, 2);
-				} else {
-					PathRemoveFileSpec((char*)path);
-					lua_pushstring(L, path);
-					lua_pushstring(L, "/");
-				}
-				lua_pushwstring(L, libname);
-				lua_concat(L, 3);
-				const char *fpath = lua_tostring(L, -1);
-				lib = (DLLib*)LoadLibraryA(fpath+1);
-				if (!lib && zip)
-					lib = (DLLib*)extract_dll(L, zip, fpath+1);
-				if (lib)
-					goto done;
-			}
-        }
+			struct zip_t *zip = (struct zip_t *)luaL_embedopen(L);
+			if (zip) {
+			lua_pushwstring(L, libname);
+			lib = (DLLib*)extract_dll(L, zip, lua_tostring(L, -1));//fpath+1);
+			if (lib)
+				goto done;
+		}
 		lua_pushnil(L);
-	} else {
+    } else {
 done:	l = (Library*)calloc(1, sizeof(Library));
 		lua_pushwstring(L, libname);
 		l->libname = PathFindFileNameA(lua_tostring(L, -1));
@@ -465,12 +441,12 @@ int wrapcall(lua_State *L) {
 		case 'u':
 #ifdef _WIN64
 		case '.':	{
-						lua_pushlightuserdata(L, (void*)dcCallLongLong(vm, func)); 
+						lua_pushinteger(L, dcCallLongLong(vm, func)); 
 						break;
 					}
 #else
 		case '.':	{
-						lua_pushlightuserdata(L, (void*)dcCallInt(vm, func)); 
+						lua_pushinteger(L, dcCallInt(vm, func)); 
 						break;
 					}
 #endif

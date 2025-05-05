@@ -71,24 +71,35 @@ size_t get_bytes(lua_State *L, const char *sig, int i) {
 	return luaL_error(L, "Unknown '%c' signature character", sig[i]);
 }
 
-static size_t get_offset(lua_State *L, const char *sig, int* idx, size_t *padding, size_t *largest, size_t *last, Field *f) {
-	size_t i, size, bytes;
+static size_t get_offset(lua_State *L, const char *sig, int *idx, size_t *padding, size_t *largest, size_t *last, Field *f) {
+	BOOL isarray = FALSE;
+	size_t i = 0, size, bytes;
 	bytes = get_bytes(L, sig, *idx);
-	if (sig[(*idx)+1] == '[') {
+	while (sig[(*idx)+1] == '[') {
 		char* end;
 		size_t nelements = strtol(sig + (*idx) + 2, &end, 10); 
 		if (*end == ']') {
-			*idx = end-(sig+*idx); 
+			if (nelements <= 0)
+				luaL_error(L, "bad array size [%d]", nelements);
+			*idx = end-sig; 
 			bytes *= nelements;
-			f->nelements = nelements;
-			goto next;
+			if (!f->ndim) {
+				f->ndim = 1;
+				f->nelements = nelements;
+			} else {
+				f->ndim++;
+				f->nelements += nelements;
+			}
+			f->dimensions[i] = nelements;
+			i++;
+			isarray = TRUE;
 		} else {
 			if (nelements)
 				luaL_error(L, "Malformed array signature '%c[]'", sig[*idx]);
 			else luaL_error(L, "Expecting valid number for %c[] array length", sig[*idx]);
 		} 
 	}
-	if (((sig[*idx] != '.') || (sig[*idx] != 'u'))) {
+	if (!isarray && ((sig[*idx] != '.') || (sig[*idx] != 'u'))) {
 		if (bytes < *last)
 			bytes = *last;
 		if (bytes > *largest)
@@ -192,12 +203,6 @@ LUA_PROPERTY_GET(Struct, size) {
 	return 1;
 }
 
-LUA_PROPERTY_GET(Struct, type) {
-	Struct *s = lua_self(L, 1, Struct);
-	lua_pushstring(L, s->data ? s->name : "Struct<cdef>");
-	return 1;
-}
-
 static Field *get_field(Struct *s, const char *name) {
 	for (int i = 0; i < s->nfields; i++)
 		if (strcmp(s->fields[i].name, name) == 0)
@@ -267,8 +272,13 @@ static void setfield(lua_State *L, Struct *s, const char *field, int idx) {
 			case 'd': 	*((double *)(s->data+f->offset)) = luaL_checknumber(L, idx); break;
 			case 'Z': 	*((char **)(s->data+f->offset)) = (char*)luaL_checkstring(L, idx); break;
 			case 'p': 	{
-				luaL_checktype(L, idx, LUA_TLIGHTUSERDATA);
-				*((void **)(s->data+f->offset)) = lua_touserdata(L, idx);
+				void *obj;
+				luart_type type;
+				size_t len;
+				if((obj = lua_tocinstance(L, idx, &type)))
+					*((void **)(s->data+f->offset)) = obj_topointer(L, obj, type, &len);
+				else
+					luaL_error(L, "cannot convert %s to Pointer", luaL_typename(L, idx));
 				break;
 			}
 			case 'W': {
@@ -286,7 +296,7 @@ LUA_METHOD(Struct, __call) {
 	Struct *s;
 	int type = lua_type(L, 2);
 	int nargs = lua_gettop(L);
-	BOOL isuserdata = lua_isuserdata(L, 2) && (type != LUA_TLIGHTUSERDATA);
+	BOOL isuserdata = lua_isuserdata(L, 2) && (type == LUA_TLIGHTUSERDATA);
 
 	lua_pushvalue(L, 1);
 	Struct *ss = lua_tocinstance(L, 1, NULL);
@@ -308,7 +318,10 @@ LUA_METHOD(Struct, __call) {
 		if ((from = lua_tocinstance(L, 2, &type))) {
 			if (type == TStruct)
 				memcpy(s->data, ((Struct *)from)->data, ((Struct *)from)->size);
-			else luaL_error(L, "cannot initialize a Struct with a %s", luaL_typename(L, 2));
+			else  {
+				s->data = from;
+				s->owned = TRUE;
+			}
 		} else {
 			lua_pushnil(L);
 			while (lua_next(L, 2)) {
@@ -316,14 +329,15 @@ LUA_METHOD(Struct, __call) {
 				lua_pop(L, 1);
 			}
 		}
-	} else if (type == LUA_TLIGHTUSERDATA) {
+	} 
+	else if (type == LUA_TNUMBER) {
 #ifdef _WIN64
-		int64_t value = (int64_t)lua_touserdata(L, 2);
+		int64_t value = (int64_t)lua_tointeger(L, 2);
 #else
-		int32_t value = (int32_t)lua_touserdata(L, 2);
+		int32_t value = (int32_t)lua_tointeger(L, 2);
 #endif
 		memcpy(s->data, &value, sizeof(value));
-	} else {
+	} else if (!isuserdata) {
 		for (int i = 2; i <= nargs; i++)
 			setfield(L, s, s->fields[i-2].name, i);
 	}
@@ -339,8 +353,8 @@ LUA_METHOD(Struct, __metaindex) {
 			lua_pushlstring(L, &s->fields[1].type, 1);
 		if (f->nelements) {
 			Array a = {0};
-			a.ndim = 1;
-			a.dimensions[0] = f->nelements;
+			a.ndim = f->ndim;
+			memcpy(&a.dimensions, &f->dimensions, sizeof(size_t)*63);
 			a.size = f->size/f->nelements;
 			a.kind = sigchar_toctype(L, f->type);
 			lua_pushlightuserdata(L, &a);
@@ -434,6 +448,4 @@ OBJECT_METAFIELDS(Struct)
 END
 
 OBJECT_MEMBERS(Struct)
-	READONLY_PROPERTY(Struct, size)
-	READONLY_PROPERTY(Struct, type)
 END

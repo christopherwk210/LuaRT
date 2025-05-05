@@ -23,6 +23,8 @@ typedef struct {
 	const char		*name;
 	int				size;
 	size_t			nelements;
+	size_t			ndim;
+	size_t			dimensions[63];
 } Field;
 
 typedef struct {

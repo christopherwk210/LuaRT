@@ -164,8 +164,13 @@ static void setfield(lua_State *L, Union *u, const char *field, int idx) {
 			case 'd': 	*((double *)(u->data)) = luaL_checknumber(L, idx); break;
 			case 'Z': 	*((char **)(u->data)) = (char*)luaL_checkstring(L, idx); break;
 			case 'p': 	{
-				luaL_checktype(L, idx, LUA_TLIGHTUSERDATA);
-				*((void **)(u->data)) = lua_touserdata(L, idx);
+				void *obj;
+				luart_type type;
+				size_t len;
+				if((obj = lua_tocinstance(L, idx, &type)))
+					*((void **)(u->data)) = obj_topointer(L, obj, type, &len);
+				else
+					luaL_error(L, "cannot convert %s to Pointer", luaL_typename(L, idx));
 				break;
 			}
 			case 'W': {
