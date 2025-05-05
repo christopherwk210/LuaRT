@@ -71,13 +71,11 @@ static void stoptracking(Widget *w) {
 }
 
 int event_onDelete(lua_State *L, Widget *w, MSG *msg) {
-  lua_throwevent(L, "onDelete", 1);
-  return 0;
+  return lua_throwevent(L, "onDelete", 1);
 }
 
 int event_onTrack(lua_State *L, Widget *w, MSG *msg) {
-  lua_throwevent(L, "onTrack", 1);
-  return 0;
+  return lua_throwevent(L, "onTrack", 1);
 }
 
 LRESULT CALLBACK TrackerProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {

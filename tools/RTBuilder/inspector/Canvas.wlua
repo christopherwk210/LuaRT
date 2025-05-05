@@ -7,6 +7,7 @@ function Canvas:onPaint()
     self:begin()
     self:clear()
     self:flip()
+    sleep()
 end
 
 Canvas.inspector = {}
