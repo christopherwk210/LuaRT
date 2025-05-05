@@ -25,14 +25,14 @@ Lua multipurpose programming framework to develop Windows applications
 
 #### Lua for Windows, with batteries included
 - Multipurpose programming framework with optimized Lua runtime library for x86 and x64 Windows.
-- Build Windows desktop or console applications with Lua.
+- Build Windows desktop or console applications with Lua
 - Lightweight with no other dependencies
 - Develop in Lua, C programming knowledge is not needed
 - Batteries included : UTF8 strings, sockets, GUI, compression, audio, graphics, C FFI...
 - LuaRT runs on Windows 8.1, Windows 10 and Windows 11.
 
 #### Complete development environment 
-- rtc: a Lua script to executable compiler
+- rtc: a Lua script to executable compiler with static compilation and binary modules support
 - QuickRT: a powerful Lua REPL
 - LuaRT Studio: a Lua/LuaRT IDE for Windows to develop and debug desktop/console applications
   
