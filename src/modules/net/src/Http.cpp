@@ -545,7 +545,7 @@ LUA_METHOD(Http, post) {
         }
         h->outbuffer += "\r\n"+boundary+"--\r\n";
     } else if (lua_isstring(L, 3)) {
-        h->outbuffer += lua_tostring(L, 3);
+        h->outbuffer += luaL_tolstring(L, 3, NULL);
     }
     return do_request(L, h, "POST");
 }
@@ -563,16 +563,29 @@ LUA_METHOD(Http, download) {
 
 //----------------------------------[ Http.delete() ]
 LUA_METHOD(Http, delete) {
-    return do_request(L, lua_self(L, 1, Http), "DELETE");
+    Http *h = lua_self(L, 1, Http);
+    if (lua_isstring(L, 3)) 
+        h->outbuffer = luaL_tolstring(L, 3, NULL);
+    else readfile(L, h, luaL_checkFilename(L, 3));
+    return do_request(L, h, "DELETE");
 }
 
 //----------------------------------[ Http.put() ]
 LUA_METHOD(Http, put) {
     Http *h = lua_self(L, 1, Http);
     if (lua_isstring(L, 3)) 
-        h->outbuffer = lua_tostring(L, 3);
+        h->outbuffer = luaL_tolstring(L, 3, NULL);
     else readfile(L, h, luaL_checkFilename(L, 3));
     return do_request(L, h, "PUT");
+}
+
+//----------------------------------[ Http.patch() ]
+LUA_METHOD(Http, patch) {
+    Http *h = lua_self(L, 1, Http);
+    if (lua_isstring(L, 3)) 
+        h->outbuffer = luaL_tolstring(L, 3, NULL);
+    else readfile(L, h, luaL_checkFilename(L, 3));
+    return do_request(L, h, "PATCH");
 }
 
 //----------------------------------[ Http.received property ]
@@ -748,6 +761,7 @@ OBJECT_MEMBERS(Http)
     METHOD(Http, get)
     METHOD(Http, post)
     METHOD(Http, put)
+    METHOD(Http, patch)
     METHOD(Http, download)
     METHOD(Http, delete)
     METHOD(Http, proxy)
