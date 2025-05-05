@@ -1,4 +1,4 @@
-﻿local VERSION = '1.9.5'
+﻿local VERSION = '2.0.0'
 
 --[[
     | LuaRT - A Windows programming framework for Lua
