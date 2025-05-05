@@ -235,10 +235,10 @@ LUA_METHOD(console, locate) {
 LUA_METHOD(console, read)
 {
 	extern int File_read(lua_State *L);
-	luaL_checkinteger(L, 1);
+	int n = luaL_optinteger(L, 1, 1);
 	lua_pushcfunction(L, File_read);
 	lua_rawgeti(L, LUA_REGISTRYINDEX, refin);
-	lua_pushvalue(L, 1);
+	lua_pushinteger(L, n);
 	lua_call(L, 2, 1);
 	return 1;
 }
@@ -371,6 +371,26 @@ LUA_METHOD(console, reset) {
 	return 0;
 }
 
+LUA_METHOD(console, show) {
+	ShowWindow(GetConsoleWindow(), SW_SHOW);
+	return 0;
+}
+
+LUA_METHOD(console, hide) {
+	ShowWindow(GetConsoleWindow(), SW_HIDE);
+	return 0;
+}
+
+LUA_PROPERTY_GET(console, visible) {
+	lua_pushboolean(L, IsWindowVisible(GetConsoleWindow()));
+	return 1;
+}
+
+LUA_PROPERTY_SET(console, visible) {
+	ShowWindow(GetConsoleWindow(), lua_toboolean(L, 1) ? SW_SHOW : SW_HIDE);
+	return 1;
+}
+
 LUA_PROPERTY_GET(console, fullscreen) {
 	lua_pushboolean(L, isfullscreen);
 	return 1;
@@ -423,27 +443,32 @@ LUA_PROPERTY_SET(console, fontsize) {
 }
 
 
-int CALLBACK EnumSystemFonts(const LOGFONTW *lf, const TEXTMETRICW *tm, DWORD ft, LPARAM lparam)
+int CALLBACK EnumSystemFonts(const LOGFONTW *lf, const TEXTMETRICW *tm, DWORD ft, LPARAM lParam)
 {	
+	*(LOGFONTW*)lParam = *lf;
 	return 0;
 }
 
 LUA_API BOOL LoadFont(LPCWSTR file, LPLOGFONTW lf) {
 	typedef BOOL(WINAPI *PGetFontResourceInfo)(LPCWSTR, LPDWORD, LPVOID, DWORD);
 	HDC dc = GetDC(NULL);
+	BOOL result = FALSE;
 
 	if (_waccess(file, 0) == 0) {
   		while (RemoveFontResourceW(file));
-  		if (AddFontResourceExW(file, 0, 0)) {
+  		if (AddFontResourceExW(file, FR_PRIVATE, 0)) {
   			DWORD n = sizeof(LOGFONTW);
   			PGetFontResourceInfo GetFontResourceInfo = (PGetFontResourceInfo)(void*)GetProcAddress(GetModuleHandleA("gdi32.dll"), "GetFontResourceInfoW");
-  			GetFontResourceInfo(file, &n, lf, 2);
-			RemoveFontResourceW(file);
-			return !EnumFontFamiliesExW(dc, lf, EnumSystemFonts, (LPARAM)NULL, 0);
-		} else return FALSE;
-  	} else wcsncpy(lf->lfFaceName, file, LF_FACESIZE);	
+			lf->lfCharSet = DEFAULT_CHARSET;
+  			if (GetFontResourceInfo(file, &n, lf, 2))
+				result = !EnumFontFamiliesExW(dc, lf, EnumSystemFonts, (LPARAM)lf, 0);
+		}
+  	} else  {
+		wcsncpy(lf->lfFaceName, file, LF_FACESIZE);	
+		result = TRUE ;
+	}
 	ReleaseDC(NULL, dc);
-	return TRUE;
+	return result;
 }
 
 LUA_PROPERTY_SET(console, font) {
@@ -481,53 +506,41 @@ LUA_PROPERTY_GET(console, cursor) {
 
 /* ------------------------------------------------------------------------ */
 
-static const luaL_Reg consolelib[] = {
-	{"read",		console_read},
-	{"readchar",	console_readchar},
-	{"readmouse",	console_readmouse},
-	{"clear",		console_clear},
-	{"readln",		console_readln},
-	{"write",		console_write},
-	{"writeln",		console_writeln},
-	{"writecolor",	console_writecolor},
-	{"inverse",		console_inverse},
-	{"reset",		console_reset},
-	{"locate",		console_locate},
-	{NULL, NULL}
-};
+MODULE_FUNCTIONS(console)
+	METHOD(console, read)
+	METHOD(console, readchar)
+	METHOD(console, readmouse)
+	METHOD(console, clear)
+	METHOD(console, readln)
+	METHOD(console, write)
+	METHOD(console, writeln)
+	METHOD(console, writecolor)
+	METHOD(console, inverse)
+	METHOD(console, reset)
+	METHOD(console, locate)
+	METHOD(console, show)
+	METHOD(console, hide)
+END
 
-static const luaL_Reg console_properties[] = {
-	{"get_width",	console_getwidth},
-	{"get_height",	console_getheight},
-	{"get_x",		console_getx},
-	{"get_y",		console_gety},
-	{"set_x",		console_setx},
-	{"set_y",		console_sety},
-	{"get_keyhit",	console_getkeyhit},
-	{"get_stdin",	console_getstdin},
-	{"set_stdin",	console_setstdin},
-	{"get_stdout",	console_getstdout},
-	{"set_stdout",	console_setstdout},
-	{"get_stderr",	console_getstderr},
-	{"set_stderr",	console_setstderr},
-	{"get_title",	console_gettitle},
-	{"set_title",	console_settitle},
-	{"get_color",	console_getcolor},
-	{"set_color",	console_setcolor},
-	{"get_bgcolor",	console_getbgcolor},
-	{"set_bgcolor",	console_setbgcolor},
-	{"get_echo",	console_getecho},
-	{"set_echo",	console_setecho},
-	{"get_fullscreen",	console_getfullscreen},
-	{"set_fullscreen",	console_setfullscreen},
-	{"get_font"		 ,	console_getfont},
-	{"set_font"		 ,	console_setfont},
-	{"get_fontsize"	,	console_getfontsize},
-	{"set_fontsize"	 ,	console_setfontsize},
-	{"get_cursor"	,	console_getcursor},
-	{"set_cursor"	 ,	console_setcursor},
-	{NULL, NULL}
-};
+MODULE_PROPERTIES(console)
+	READONLY_PROPERTY(console, width)
+	READONLY_PROPERTY(console, height)
+	READONLY_PROPERTY(console, keyhit)
+	READWRITE_PROPERTY(console, x)
+	READWRITE_PROPERTY(console, y)
+	READWRITE_PROPERTY(console, stdin)
+	READWRITE_PROPERTY(console, stdout)
+	READWRITE_PROPERTY(console, stderr)
+	READWRITE_PROPERTY(console, title)
+	READWRITE_PROPERTY(console, color)
+	READWRITE_PROPERTY(console, bgcolor)
+	READWRITE_PROPERTY(console, echo)
+	READWRITE_PROPERTY(console, fullscreen)
+	READWRITE_PROPERTY(console, font)
+	READWRITE_PROPERTY(console, fontsize)
+	READWRITE_PROPERTY(console, cursor)
+	READWRITE_PROPERTY(console, visible)
+END
 
 int create_stdfile(lua_State *L, FILE *f, wchar_t *name, int mode) {
 	File *F;
