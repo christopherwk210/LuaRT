@@ -9,6 +9,7 @@
 #include <shlwapi.h>
 #include <shlobj_core.h>
 #include <KnownFolders.h>
+#include <Lmcons.h>
 
 static int folders_ref;
 
@@ -320,8 +321,8 @@ LUA_PROPERTY_GET(sysutils, folders) {
 
 //------------------------------------ sysutils.user property
 LUA_PROPERTY_GET(sysutils, user) {
-  wchar_t name[MAX_PATH + 1];
-  DWORD size = sizeof(name);
+  wchar_t name[UNLEN + 1];
+  DWORD size = UNLEN + 1;
 
 	if (!GetUserNameW(name, &size))
 		lua_pushboolean(L, FALSE);
@@ -344,7 +345,7 @@ LUA_PROPERTY_GET(sysutils, isadmin) {
 
 //------------------------------------ sysutils.shellexec() function
 LUA_METHOD(sysutils, shellexec) {
-    BOOL success;
+    BOOL success = FALSE;
     SHELLEXECUTEINFOW sei = {0};
     wchar_t *verb = lua_towstring(L, 1);
     wchar_t *path = luaL_checkFilename(L, 2);
@@ -358,13 +359,20 @@ LUA_METHOD(sysutils, shellexec) {
     sei.lpDirectory = dir;
     sei.lpFile = path;
     sei.nShow = SW_SHOWDEFAULT;
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
 
-    lua_pushboolean(L, ShellExecuteExW(&sei));
+    if (ShellExecuteExW(&sei)) {
+      if (sei.hProcess) {
+          WaitForSingleObject(sei.hProcess, INFINITE);
+          CloseHandle(sei.hProcess);
+      }
+      success = TRUE;
+    }
     free(dir);
     free(param);
     free(path);
-    free(verb);
-    lua_sleep(L, 500);
+    free(verb);   
+    lua_pushboolean(L, success);
     return 1;
 }
 
