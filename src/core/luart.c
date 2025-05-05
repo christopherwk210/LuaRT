@@ -13,7 +13,6 @@
 #include <locale.h>
 #include <malloc.h>
 #include <stdint.h>
-#include <luart.h>
 #include "lrtapi.h"
 #include <Task.h>
 #include <wchar.h>
@@ -24,6 +23,8 @@
 #endif
 #include <ui\ui.h>
 
+#include <luart.h>
+#include "resources\resource.h"
 
 #ifndef _MSC_VER
 	#ifdef __cplusplus
@@ -60,7 +61,7 @@ int link(lua_State *L) {
 	if (ReadFile(hFile, pBuffer, FileSize, &dwBytesRead, NULL)) {
 		hExeFile = BeginUpdateResourceW(fexe, FALSE);
 		*pBuffer = 0x4C;
-		result = UpdateResource(hExeFile, RT_RCDATA, MAKEINTRESOURCE(100), MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US), (LPVOID)pBuffer, FileSize);
+		result = UpdateResource(hExeFile, RT_RCDATA, MAKEINTRESOURCE(EMBED), MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US), (LPVOID)pBuffer, FileSize);
 	}
 	EndUpdateResource(hExeFile, FALSE);
 	CloseHandle(hFile);
@@ -176,15 +177,9 @@ static int update_exe_icon(lua_State *L) {
 
 #ifndef AIO
 //------- LuaRT modules included in luart.exe/wluart.exe
-	#if defined(LUART_STATIC) || defined(RTWIN)
+	#if defined(RTWIN)
 		static luaL_Reg luaRT_libs[] = {
-			#ifdef LUART_STATIC
-				{"crypto",	luaopen_crypto },
-				{"net",		luaopen_net },
-			#endif
-			#ifdef RTWIN
-				{ "ui",				luaopen_ui },
-			#endif
+			{ "ui",				luaopen_ui },
 			{ NULL,		NULL }
 		};
 	#endif
@@ -203,7 +198,7 @@ void lua_stop(void) {
 }
 
 #if defined(RTWIN) || defined(UI)
-extern int do_update(lua_State *L);
+LUA_API int do_update(lua_State *L);
 #endif
 
 #ifdef RTWIN
@@ -233,7 +228,7 @@ int main() {
 	L = luaL_newstate();
 	luaL_openlibs(L);
 #ifndef AIO	
-	#if defined(LUART_STATIC) || defined(RTWIN)
+	#if defined(RTWIN)
 		const luaL_Reg *lib;
 		for (lib = luaRT_libs; lib->func; lib++) {
 			luaL_requiref(L, lib->name, lib->func, 0);
@@ -256,12 +251,12 @@ int main() {
 		puts(LUA_VERSION " " LUA_ARCH " - Windows programming framework for Lua.\nCopyright (c) 2025, Samir Tine.\nusage:\tluart.exe [-e statement] [script] [args]\n\n\t-e statement\tExecutes the given Lua statement\n\tscript\t\tRun a Lua script file\n\targs\t\tArguments for Lua interpreter");
 	else {
 		lua_createtable(L, argc, 0);	
+		for (i=1; i < argc+is_embeded; i++) {
+			lua_pushwstring(L, wargv[i-is_embeded]);
+			lua_rawseti(L, -2, i-1);
+		}	
 		lua_pushwstring(L, exename);
 		lua_rawseti(L, -2, -1);
-		for (i=1; i < argc; i++) {
-			lua_pushwstring(L, wargv[i]);
-			lua_rawseti(L, -2, i-1 + is_embeded);
-		}	
 		lua_setglobal(L, "arg");
 		lua_gc(L, LUA_GCGEN, 0, 0);
 #if defined(RTWIN) || defined(UI)
@@ -294,7 +289,7 @@ int main() {
 			} else { 
 				if (luaL_loadfile(L, __argv[argfile]) == LUA_OK) {
 compiledscript:		t = (Task*)lua_pushinstance(L, Task, 1);
-					if (lua_pcall(L, 0, 0, 0))
+					if (lua_pcall(L, 0, 0, 0)) 
 						goto error;
 					do {
 						if (lua_schedule(L) == -1) {
@@ -321,7 +316,7 @@ error:
 								if (strstr(err, "[string """) == err) {
 									const char *tmp = luaL_gsub(L, err, "[string \"", "");
 									err = luaL_gsub(L, tmp, "\"]:", ":");
-								}
+								} 
 							}
 							fputs(err, stderr);
 							fputs("\n", stderr);
