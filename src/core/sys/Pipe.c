@@ -94,13 +94,15 @@ static int PipeReadTaskContinue(lua_State* L, int status, lua_KContext ctx) {
 	DWORD exitCode = 0;
     
 	GetExitCodeProcess(p->pi.hProcess, &exitCode);
-	if ((exitCode != STILL_ACTIVE) || !p->out_read)
-		return 0;
-	if (p->delay <= GetTickCount()) {
+	if (p->delay > GetTickCount()) {
 		count = pipe_read(L, p->out_read);
 		count += pipe_read(L, p->err_read);
+		if (count)
+			return count;
 	}
-    return count ? count : lua_yieldk(L, 0, ctx, PipeReadTaskContinue);
+	if ((exitCode != STILL_ACTIVE) || !p->out_read)
+		return 0;
+	return lua_yieldk(L, 0, ctx, PipeReadTaskContinue);
 }
 
 LUA_METHOD(Pipe, read) {

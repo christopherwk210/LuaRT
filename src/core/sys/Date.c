@@ -15,6 +15,7 @@
 #include <time.h>
 #include <windows.h>
 #include <oleauto.h>
+#include <math.h>
 
 
 luart_type TDatetime;
@@ -100,7 +101,7 @@ LUA_METHOD(Datetime, interval) {
 
 	SystemTimeToFileTime(lua_self(L, 1, Datetime)->st, &t2.fTime);
 	SystemTimeToFileTime(lua_self(L, 2, Datetime)->st, &t1.fTime);
-	lua_pushinteger(L, (lua_Integer)((t2.ul.QuadPart - t1.ul.QuadPart)/intervals_values[interval]));
+	lua_pushinteger(L, (lua_Integer)round(((double)(t2.ul.QuadPart - t1.ul.QuadPart))/intervals_values[interval]));
 	return 1;
 }
 
@@ -130,7 +131,7 @@ static Datefield get_datefield(lua_State *L, Datetime *d) {
 	WORD *value[] = { &d->st->wDay, &d->st->wDayOfWeek, &d->st->wHour, &d->st->wMilliseconds, &d->st->wMinute, &d->st->wMonth, &d->st->wSecond, &d->st->wYear };
 	int idx = lua_optstring(L, 2, props, -1);
 	Datefield df;
-
+	
 	df.field = idx == -1 ? NULL : value[idx];
 	df.offset = idx == 1;
 	df.idx = idx;
@@ -155,6 +156,7 @@ static Datefield get_datefield(lua_State *L, Datetime *d) {
 /* 1601 to 1970 is 369 years plus 89 leap days */
 #define SECS_1601_TO_1970  ((369 * 365 + 89) * (ULONGLONG)SECSPERDAY)
 #define TICKS_1601_TO_1970 (SECS_1601_TO_1970 * TICKSPERSEC)
+static double set_time[] = { SECSPERDAY, -1, SECSPERHOUR, 0.001, SECSPERMIN, 30.44 * SECSPERDAY * 10000000, 1, 0 };
 
 static inline BOOL IsLeapYear(int Year)
 {
@@ -168,17 +170,138 @@ LUA_METHOD(Datetime, index) {
 	Datefield df = get_datefield(L, d);
 	if (df.field)
 		lua_pushinteger(L, (*df.field) + df.offset);
-	return df.field != NULL;
+	return df.field != NULL;	
+}
+
+int getDaysInMonth(lua_State *L, int year, int month) {
+    switch (month) {
+        case 1: case 3: case 5: case 7: case 8: case 10: case 12:
+            return 31;
+        case 4: case 6: case 9: case 11:
+            return 30;
+        case 2:
+            return IsLeapYear(year) ? 29 : 28;
+        default:
+            return luaL_error(L, "invalid month value");
+    }
+}
+
+typedef struct {
+	int year;
+	int month;
+	int day;
+	int weekday;
+	int hour;
+	int minute;
+	int second;
+	int millisecond;
+} iSYSTEMTIME;
+
+int calculateDayOfWeek(int year, int month, int day) {
+    if (month < 3) {
+        month += 12;
+        year -= 1;
+    }
+    int k = year % 100; 
+    int j = year / 100;
+    int weekday = (day + ((13 * (month + 1)) / 5) + k + (k / 4) + (j / 4) - (2 * j)) % 7;
+    return (weekday + 7) % 7;
+}
+
+void NormalizeSystemTime(lua_State *L, SYSTEMTIME *st, iSYSTEMTIME *ist) {
+    ist->second += ist->millisecond / 1000;
+    ist->millisecond %= 1000;
+    if (ist->millisecond < 0) {
+        ist->millisecond += 1000;
+        ist->second -= 1;
+    }
+
+    ist->minute += ist->second / 60;
+    ist->second %= 60;
+    if (ist->second < 0) {
+        ist->second += 60;
+		ist-> minute -= 1;
+    }
+
+    ist->hour += ist->minute / 60;
+    ist->minute %= 60;
+    if (ist->minute < 0) {
+        ist->minute += 60;
+        ist->hour -= 1;
+    }
+
+    ist->day += ist->hour / 24;
+    ist->hour %= 24;
+    if (ist->hour < 0) {
+        ist->hour += 24;
+        ist->day -= 1;
+    }
+
+    while (ist->day > getDaysInMonth(L, ist->year, ist->month)) {
+        ist->day -= getDaysInMonth(L, ist->year, ist->month);
+        if (++ist->month > 12) {
+            ist->month = 1;
+            ist->year++;
+        }
+    }
+    while (ist->day <= 0) {
+        if (--ist->month < 1) {
+            ist->month = 12;
+            ist->year--;
+        }
+        ist->day += getDaysInMonth(L, ist->year, ist->month);
+    }
+	ist->weekday = calculateDayOfWeek(ist->year, ist->month, ist->day);
+
+    while (ist->month > 12) {
+        ist->month -= 12;
+        ist->year++;
+    }
+    while (ist->month < 1) {
+        ist->month += 12;
+        ist->year--;
+    }
+
+    st->wYear = (WORD)ist->year;
+    st->wMonth = (WORD)ist->month;
+    st->wDay = (WORD)ist->day;
+    st->wDayOfWeek = (WORD)ist->weekday;
+    st->wHour = (WORD)ist->hour;
+    st->wMinute = (WORD)ist->minute;
+    st->wSecond = (WORD)ist->second;
+    st->wMilliseconds = (WORD)ist->millisecond;
 }
 
 LUA_METHOD(Datetime, newindex) {	
 	Datetime *d = lua_self(L, 1, Datetime);
+	const char *field = lua_tostring(L, 2);
+	iSYSTEMTIME ist;
+	
+	ist.year = d->st->wYear;
+    ist.month = d->st->wMonth;
+    ist.day = d->st->wDay;
+    ist.hour = d->st->wHour;
+    ist.minute = d->st->wMinute;
+    ist.second = d->st->wSecond;
+    ist.millisecond = d->st->wMilliseconds;
+    ist.weekday = d->st->wDayOfWeek;
+
 	Datefield df = get_datefield(L, d);
-	static WORD month_days[12] = { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 	if (df.field) { 
-		*df.field = (WORD)lua_tointeger(L,3)-df.offset;
-	   	if ((d->st->wMonth == 0 || d->st->wMonth > 12) ||  d->st->wDay == 0 || d->st->wDay > month_days[d->st->wMonth] || d->st->wHour > 23 || d->st->wMinute > 59 || d->st->wSecond > 59 || d->st->wMilliseconds > 999 || (d->st->wMonth == 2 && d->st->wDay == 29 && !IsLeapYear(d->st->wYear)) )
-    		luaL_error(L, "invalid Datetime.%s value",  props[df.idx]);
+		lua_Integer num = luaL_checkinteger(L, 3)-df.offset;
+
+		switch(df.idx) {
+			case 0:	ist.day = num; break;
+			case 1: ist.weekday = num; break;
+			case 2: ist.hour = num; break;
+			case 3: ist.millisecond = num; break;
+			case 4: ist.minute = num; break;
+			case 5: ist.month = num; break;
+			case 6: ist.second = num; break;
+			case 7: ist.year = num; break;
+		}
+		
+		NormalizeSystemTime(L, d->st, &ist);
 		if (d->owner)
 			d->update(L, d->owner);
 	}

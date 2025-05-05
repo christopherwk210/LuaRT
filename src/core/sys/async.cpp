@@ -8,11 +8,15 @@
 
 #define LUA_LIB
 
-#include <luart.h>
-#include <Task.h>
 #include <list>
+
+#define LUART_TYPES
 #include "async.h"
-#include "../lrtapi.h"
+
+extern "C" {
+	LUA_API luart_type TTask;
+}
+
 
 static std::list<Task *> Tasks;
 static lua_CFunction lua_update = NULL;
@@ -138,9 +142,10 @@ int resume_task(lua_State *L, Task *t, int args) {
 //-------- Task scheduler
 int update_tasks(lua_State *L) {
 	static int tosleep = 0;
-
+ 
 	if (lua_update)
-		lua_update(L);
+		if (lua_update(L) == -1)
+			return -1;
 
 	for (auto it = Tasks.begin(); it != Tasks.end(); ++it) {
 		Task *t = *it;
@@ -182,7 +187,7 @@ int update_tasks(lua_State *L) {
 		Sleep(1);
 		tosleep = 0;
 	}
-	return 0;
+	return TRUE;
 }
 
 //-------- Wait for a Task at specific index
@@ -201,7 +206,7 @@ int waitfor_task(lua_State *L, int idx) {
 //-------- Wait for all Tasks
 int waitall_tasks(lua_State *L) {
     do
-		if (update_tasks(L) == -1)
+		if (!update_tasks(L))
 			lua_error(L);
 	while (Tasks.size() > 1);		
     return 0;

@@ -118,8 +118,10 @@ LUA_API int lua_throwevent(lua_State *L, const char *name, int nparams) {
     t->status = TRunning;
     lua_xmove(L, t->L, nparams);
     int status = lua_resume(t->L, L, nparams, &nres);
-    if (status > LUA_YIELD)
-      lua_error(t->L);
+    if (status > LUA_YIELD) {
+		lua_xmove(t->L, L, 1);
+    	return -1;
+	}
     t->status = TTerminated;
 	lua_xmove(t->L, L, nres);
 	return nres;

@@ -64,6 +64,61 @@ error:		lua_pushfstring(L, err, lua_tostring(L, 2));
 	return 1;
 }
 
+static BOOL VariantToLua(lua_State *L, VARIANT *result, ITypeInfo *t, TYPEATTR *attr, BOOL isEnum) {
+	switch(result->vt) {
+		case VT_EMPTY:
+		case VT_NULL:		lua_pushnil(L); break;
+		case VT_BSTR:		lua_pushwstring(L, (LPCWSTR)V_BSTR(result)); break;						
+		case VT_BOOL:  		lua_pushboolean(L, result->boolVal); break;
+		case VT_I1:
+		case VT_I2:
+		case VT_I4:
+		case VT_I8:
+		case VT_INT:		if (!isEnum && attr->typekind == TKIND_ENUM) {
+								wchar_t *name;
+								VARDESC *vardesc;
+								BOOL done = FALSE;
+
+								for (UINT i = 0; !done && (i < attr->cVars); i++) {
+									ITypeInfo_GetVarDesc(t, i, &vardesc);
+									if (V_I8(result) == vardesc->lpvarValue->intVal) {
+										ITypeInfo_GetDocumentation(t, vardesc->memid, &name, NULL, NULL, NULL);
+										lua_pushwstring(L, name);
+										done = TRUE;
+										SysFreeString(name);
+									}
+									ITypeInfo_ReleaseVarDesc(t, vardesc);									
+								}									
+							} else {
+								VariantChangeType(result, result, 0, VT_I8);
+								lua_pushinteger(L, V_I8(result));
+							}
+							break;
+		case VT_R4:
+		case VT_R8:
+		case VT_DECIMAL:	VariantChangeType(result, result, 0, VT_R8);
+							lua_pushnumber(L, V_R8(result)); break;
+		case VT_DISPATCH:	{
+								if (result->pdispVal) {
+									lua_pushlightuserdata(L, result->pdispVal);
+									lua_pushinstance(L, COM, 1);
+									return FALSE;									
+								} else lua_pushnil(L);
+								break;
+							}
+		case VT_DATE:		{
+								SYSTEMTIME st;
+								VariantTimeToSystemTime(V_DATE(result), &st);
+								lua_pushlightuserdata(L, &st);
+								lua_pushinstance(L, Datetime, 1);
+								return FALSE;
+								break;
+							}
+		default: 			luaL_error(L, "COM error : unsupported result type %d", result->vt); 
+	}	
+	return TRUE;
+}
+
 static int COM_method_call(lua_State *L) {
 	COM				*obj;
 	wchar_t 		*field = lua_towstring(L, lua_upvalueindex(1));
@@ -169,7 +224,7 @@ number:		case LUA_TNUMBER:	if (lua_isinteger(L, idx)) {
 											break;
 				case DISP_E_EXCEPTION:		if (id_setprop == DISPID_VALUE) {
 												hr = S_OK;
-												goto done;
+												lua_pushnil(L);
 											}
 											if (execpInfo.bstrHelpFile)
 												SysFreeString(execpInfo.bstrHelpFile);
@@ -185,57 +240,8 @@ number:		case LUA_TNUMBER:	if (lua_isinteger(L, idx)) {
 				case DISP_E_BADVARTYPE:		lua_pushstring(L, "Bad argument type"); break;							
 				case DISP_E_TYPEMISMATCH:	lua_pushfstring(L, "type mismatch for parameter %d", puArgErr); break;
 			} 
-		} else switch(result.vt) {
-			case VT_EMPTY:
-done:		case VT_NULL:		lua_pushnil(L); break;
-			case VT_BSTR:		lua_pushwstring(L, (LPCWSTR)V_BSTR(&result)); break;						
-			case VT_BOOL:  		lua_pushboolean(L, result.boolVal); break;
-			case VT_I1:
-			case VT_I2:
-			case VT_I4:
-			case VT_I8:
-			case VT_INT:		if (restype == TKIND_ENUM) {
-									wchar_t *name;
-									VARDESC *vardesc;
-									BOOL done = FALSE;
-
-									for (UINT i = 0; !done && (i < attr->cVars); i++) {
-										ITypeInfo_GetVarDesc(t, i, &vardesc);
-										if (V_I8(&result) == vardesc->lpvarValue->intVal) {
-											ITypeInfo_GetDocumentation(t, vardesc->memid, &name, NULL, NULL, NULL);
-											lua_pushwstring(L, name);
-											done = TRUE;
-											SysFreeString(name);
-										}
-										ITypeInfo_ReleaseVarDesc(t, vardesc);									
-									}									
-								} else {
-									VariantChangeType(&result, &result, 0, VT_I8);
-									lua_pushinteger(L, V_I8(&result));
-								}
-								break;
-			case VT_R4:
-			case VT_R8:
-			case VT_DECIMAL:	VariantChangeType(&result, &result, 0, VT_R8);
-								lua_pushnumber(L, V_R8(&result)); break;
-			case VT_DISPATCH:	{
-									if (result.pdispVal) {
-										lua_pushlightuserdata(L, result.pdispVal);
-										lua_pushinstance(L, COM, 1);
-										goto cleanup;
-									}
-									lua_pushnil(L);
-									break;
-								}
-			case VT_DATE:		{
-									SYSTEMTIME st;
-									VariantTimeToSystemTime(V_DATE(&result), &st);
-									lua_pushlightuserdata(L, &st);
-									lua_pushinstance(L, Datetime, 1);
-									goto cleanup;
-								}
-			default: 			luaL_error(L, "COM error : unsupported result type %d", result.vt); 
-		}
+		} else if (!VariantToLua(L, &result, t, attr, FALSE))
+			goto cleanup;
 	} else
 		lua_pushfstring(L, "COM error : no member '%s' found", lua_tostring(L, lua_upvalueindex(1)));
 	VariantClear(&result);
@@ -308,6 +314,9 @@ LUA_METHOD(COM, __index) {
 	UINT		puArgErr = 0;
 	VARIANT		result = {0};
 	HREFTYPE	restype = (HREFTYPE)0;
+	ITypeInfo* typeInfo = NULL;
+	TYPEATTR* typeAttr = NULL;
+	VARDESC* varDesc = NULL;
 
 	if (SUCCEEDED(IDispatch_GetIDsOfNames(obj->this, &IID_NULL, &field, 1, 0, &id))) {
 		if (GetResultType(obj, field, &restype))
@@ -332,11 +341,60 @@ LUA_METHOD(COM, __index) {
 			luaL_error(L, "'%s.%s' field not found", lua_tostring(L, -1), lua_tostring(L, 2));
 		} else {
 method:		lua_pushvalue(L, 2);
-			lua_pushinteger(L, DISPATCH_METHOD);
+lua_pushinteger(L, DISPATCH_METHOD);
 			lua_pushinteger(L, restype);
 			lua_pushcclosure(L, COM_method_call, 3);
 		}
-	} else lua_pushnil(L);
+	} else {		
+		long count;
+		USHORT found = TRUE;
+		
+		if (SUCCEEDED(IDispatch_GetTypeInfoCount(obj->this, &count)) && count) {
+			UINT index;
+			ITypeLib* pTypeLib = NULL;
+			ITypeLib2* pTypeLib2 = NULL;
+
+			if (SUCCEEDED(ITypeInfo_GetContainingTypeLib(obj->typeinfo, &pTypeLib, &index))) {
+				if (SUCCEEDED(ITypeLib_QueryInterface(pTypeLib, &IID_ITypeLib2, (void**)&pTypeLib2))) {
+					BSTR bstrfield = SysAllocString(field);
+					MEMBERID memId[1];
+					ITypeInfo* ppTI[1];
+					
+					if (SUCCEEDED(ITypeLib2_FindName(pTypeLib2, bstrfield, 0, ppTI, memId, &found)) && found > 0) {
+						TYPEATTR* pTypeAttr = NULL;
+						found = FALSE;
+						if (SUCCEEDED( ITypeInfo_GetTypeAttr(ppTI[0], &pTypeAttr))) {
+							if (pTypeAttr->typekind == TKIND_ENUM) {
+								for (UINT j = 0; j < pTypeAttr->cVars || !found; j++) {
+									VARDESC* pVarDesc = NULL;
+									if (SUCCEEDED(ITypeInfo_GetVarDesc(ppTI[0], j, &pVarDesc))) {
+										if (pVarDesc->varkind == VAR_CONST) {
+											BSTR bstrName = NULL;
+											if (SUCCEEDED(ITypeInfo_GetDocumentation(ppTI[0], pVarDesc->memid, &bstrName, NULL, NULL, NULL))) {
+												if (_wcsicmp(bstrName, field) == 0) {
+													VariantToLua(L, pVarDesc->lpvarValue, ppTI[0], pTypeAttr, TRUE);
+													found = TRUE;
+												}
+											}
+											SysFreeString(bstrName);
+										}
+										ITypeInfo_ReleaseVarDesc(ppTI[0], pVarDesc);
+									}
+								}
+							}
+							ITypeInfo_ReleaseTypeAttr(ppTI[0], pTypeAttr);
+						}
+						ITypeInfo_Release(ppTI[0]);
+					}
+					SysFreeString(bstrfield);
+					ITypeLib2_Release(pTypeLib2);
+				}
+				ITypeLib_Release(pTypeLib);
+			}
+		}
+		if (!found)
+			lua_pushnil(L);
+	}	
 	free(field);
 	return 1;
 }
