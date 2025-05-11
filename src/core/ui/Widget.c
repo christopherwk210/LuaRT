@@ -380,7 +380,7 @@ notify:		if ((w->wtype == UIEdit) && (lpNmHdr->code == EN_SELCHANGE)) {
 					scaler->lpVtbl->Release(scaler);
 				}
 			}
-			return 0;
+			break;
 		case WM_HSCROLL:
 		case WM_VSCROLL:
 			if (w->wtype == UIEdit && (((int)wParam & 0xFFFF) == 5))
