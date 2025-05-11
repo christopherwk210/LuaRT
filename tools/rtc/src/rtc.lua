@@ -67,7 +67,7 @@ usage:	rtc.exe [-s][-c][-w][-i icon][-o output] [-lmodname] [directory] main.lua
 		elseif directory == nil and not sys.File(option).exists then
 			directory = sys.Directory(option)
 			if not directory.exists then
-				error("cannot find file "..option)
+				error("cannot find directory "..option)
 			end
 		else 
 			local f = sys.File(option)
