@@ -294,21 +294,21 @@ LUA_METHOD(Zip, read) {
 extern BOOL make_path(wchar_t *folder);
 
 uint64_t extract_zip(struct zip_t *z, const char *dir) {
-	int	entry = 0;
+	int	entry = -1;
 	size_t slen;
 	size_t size = 0, len = dir ? strlen(dir) : 0, count = 0;
 	BOOL success = TRUE;
 
-	while(success && (zip_entry_openbyindex(z, entry++) == 0)) {
+	while(((zip_entry_openbyindex(z, ++entry) == 0))) {
 		const char *name = zip_entry_name(z);
 		size = strlen(name);
-		char *fname = malloc(++size);
+		char *fname;
 		int i;
 		
-		if (dir && (strncmp(dir, name, len) == 0)) {
-			count++;
+		if (dir && (strncmp(dir, name, len) != 0)) 
 			goto next;
-		}
+		
+		fname = malloc(++size);
 		strncpy(fname, name, size);
 		slen = size;
 		fname[slen-1] = 0;
@@ -320,11 +320,11 @@ uint64_t extract_zip(struct zip_t *z, const char *dir) {
 				fname[i] = L'\\';
 			}
 		}
-		if ( !zip_entry_isdir(z) ) 
+		if ( !zip_entry_isdir(z) )
 			success = (zip_entry_fread(z, fname) == 0);
 		count++;
-next:
 		free(fname);
+next:
 		zip_entry_close(z);
 	}
 	return count;
@@ -368,7 +368,7 @@ LUA_METHOD(Zip, extract)
 	if (zip_entry_open(z->zip, name) == 0) {
 dir:	if (zip_entry_isdir(z->zip)) {
 			zip_entry_close(z->zip);
-			extract_zip(z->zip, dname);		
+			extract_zip(z->zip, name);		
 			lua_pushvalue(L, 2);
 			lua_pushinstance(L, Directory, 1);
 		}
