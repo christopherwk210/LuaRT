@@ -259,19 +259,28 @@ LUA_METHOD(embed, File) {
     return 1;
 }
 
-LUA_METHOD(embed, sysFile) {
+static embed_entry(lua_State *L, const char *type) {
   if (!lua_isstring(L, 1))
     luaL_error(L, "Bad argument #2 (string expected, found %s)", luaL_typename(L, 2));
   embed_File(L);
   if (!lua_toboolean(L, -1)) {
     lua_pushvalue(L, 1);
-    lua_pushinstance(L, File, 1);
+    lua_pushnewinstance(L, type, 1);
   }
   return 1;
 }
 
+LUA_METHOD(embed, sysFile) {
+  return embed_entry(L, "File");
+}
+
+LUA_METHOD(embed, sysDirectory) {
+  return embed_entry(L, "Directory");
+}
+
 static const luaL_Reg embedlib[] = {
-	{"File",	embed_File},
+	{"File",	    embed_File},
+	{"Directory",	embed_File},
 	{NULL, NULL}
 };
 
@@ -295,6 +304,8 @@ LUAMOD_API int luaopen_embed(lua_State *L) {
   lua_getfield(L, -1, "sys");
   lua_pushcfunction(L, embed_sysFile);
   lua_setfield(L, -2, "File");
+  lua_pushcfunction(L, embed_sysDirectory);
+  lua_setfield(L, -2, "Directory");
   lua_pop(L, 3);
 	return 1;
 };
