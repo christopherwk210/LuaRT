@@ -17,6 +17,7 @@ extern "C" {
 	BOOL g_darkModeEnabled = FALSE;
 	DWORD g_buildNumber = 0;
 	BOOL DarkMode = FALSE;	
+	BOOL isdarkScrollBar = FALSE;
 }
 
 using fnRtlGetNtVersionNumbers = void (WINAPI *)(LPDWORD major, LPDWORD minor, LPDWORD build);
@@ -126,27 +127,6 @@ extern "C" {
 		}
     }	
 
-	BOOL IsColorSchemeChangeMessageLParam(LPARAM lParam)
-	{
-		BOOL is = FALSE;
-		if (lParam && CompareStringOrdinal(reinterpret_cast<LPCWCH>(lParam), -1, L"ImmersiveColorSet", -1, TRUE) == CSTR_EQUAL)
-		{
-			if (_RefreshImmersiveColorPolicyState)
-				_RefreshImmersiveColorPolicyState();
-			is = TRUE;
-		}
-		if (_GetIsImmersiveColorUsingHighContrast)
-			_GetIsImmersiveColorUsingHighContrast(IHCM_REFRESH);
-		return is;
-	}
-
-	BOOL IsColorSchemeChangeMessage(UINT message, LPARAM lParam)
-	{
-		if (message == WM_SETTINGCHANGE)
-			return IsColorSchemeChangeMessageLParam(lParam);
-		return FALSE;
-	}
-
 	void AllowDarkModeForApp(BOOL allow)
 	{
 		if (_AllowDarkModeForApp)
@@ -154,8 +134,6 @@ extern "C" {
 		else if (_SetPreferredAppMode)
 			_SetPreferredAppMode(allow ? ForceDark : ForceLight);
 	}
-
-	static BOOL isdarkScrollBar;
 
 	void FixDarkScrollBar(BOOL theme) {
 		isdarkScrollBar = theme;

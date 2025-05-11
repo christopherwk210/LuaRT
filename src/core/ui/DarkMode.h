@@ -12,6 +12,7 @@ extern "C" {
 	extern BOOL g_darkModeEnabled;
 	extern DWORD g_buildNumber;
 	extern BOOL DarkMode;
+	extern BOOL isdarkScrollBar;
 
 	typedef enum 
 	{

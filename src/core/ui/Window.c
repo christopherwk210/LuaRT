@@ -340,6 +340,9 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) {
 											break;
 				} return 0;
 			case WM_SYSKEYDOWN:
+				if (wParam == VK_F4 && (GetKeyState(VK_MENU) & 0x8000))
+					return DefWindowProc(hWnd, Msg, wParam, lParam);
+		
 			case WM_KEYDOWN:
 				HWND hchild = GetFocus();
 				Widget *wp, *child = (Widget*)GetWindowLongPtr(hchild, GWLP_USERDATA);
