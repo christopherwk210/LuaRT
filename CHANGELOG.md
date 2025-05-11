@@ -18,17 +18,20 @@
 - Fixed: Putting a Canvas or Webview widget inside a Panel won't crash RTBuilder anymore
 
 #### rtc
-- New: `sys.File()` now uses embedded files first for compiled scripts.
+- New: `sys.File()` and `sys.Directory` now uses embedded files and directories first for compiled scripts.
 - Updated: static compiled executables can now embed and load Lua binary modules (linked with `lua54-static.lib` and suffixed by `-static.dll`)
 - Updated: `rtc` now displays more information during compilation
 - Updated: `wrtc` now supports static linking of binary modules
 - Updated: static compiled executables can now load Lua 5.4 binary modules suffixed by `-static.dll`
 - Updated: arg[0] now contains the current executable fullpath for compiled scripts
-- Fixed: `sys.File()` won't crash anymore for embedded files now
+- Fixed: `sys.File()` won't crash anymore for embedded files
 
 #### `serial` module
 - New module for serial communications
 - New `Port` object supporting asynchronous COM ports operations with Tasks, and fine control for baud rate, parity, stop bits, etc.
+
+#### `embed` module
+- New: `embed.Directory` object to access directories from embedded content
 
 #### `sys` module
 - New: `COM` object can now be indexed by any of its constant values
@@ -40,6 +43,7 @@
 #### `compression` module
 - Fixed: `Zip.async.extract()` works now correctly
 - Fixed: `Zip` entries now can use either `\` or `/` separator characters for paths
+- Fixed: `Zip:extract()` won't fail anymore when extracting directories
 
 #### `console` module
 - New: `console:show()` and `console:hide()` methods
@@ -55,17 +59,22 @@
 #### `net` module
 - New: `Http:patch()`method for PATCH HTTP requests
 - Updated: `Http:put()`, `Http:delete()` and `Http:patch()` now takes a second parameter to set the body content of the request
+- Updated: `sys.Buffer` can now be used to set HTTP requests body content
 
 #### `sysutils` module
 - Fixed: `sysutils.user` won't include a terminal `\0` character anymore
 - Updated: `sysutils.shellexec()` now waits for the child process to terminate before returning
 
 #### `ui` module
+- Updated: `ui.theme` value now changes when the user changes the Windows theme setting
+- Updated: `Button.hastext` property now remembers last Button size
+- Updated: Mouse events will now have their x,y mouse position  corrected with current DPI
+- Fixed: Windows can now be closed using `ALT+F4`
 - Fixed: `Tab` widget now draws correctly when changing Tab font properties
 - Fixed: `Groupbox` now draws correctly and adapts to the parent background color
 - Fixed: `Button` size is now correct when setting a button icon
 - Fixed: `Widget.font` property changes now the Widget font as expected
-- Updated: `Button.hastext` property now remembers last Button size
+- Fixed: Changing `Edit` width will now adapt the text input area
 
 #### `canvas` module
 - New `Image:drawsub()` method to draw a part of an image with new example `subimage.wlua`
