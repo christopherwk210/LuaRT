@@ -518,6 +518,7 @@ int do_update(lua_State *L)
 			            lua_pushinstance(L, Task, 1);
 						lua_remove(L, -2);
 						lua_insert(L, -2);
+						double dpi = GetDPIForSystem();
 						switch (msg.message) {
 							case WM_LUADBLCLICK:
 							case WM_LUACONTEXT:	if (((w->wtype >= UIList) && (w->wtype <= UITab)) && (msg.wParam > 0))
@@ -526,16 +527,16 @@ int do_update(lua_State *L)
 
 							case WM_LUAMOUSEDOWN:
 							case WM_LUAMOUSEUP:		lua_pushstring(L, mouse_buttons[msg.wParam]);
-													lua_pushinteger(L,  GET_X_LPARAM(msg.lParam));
-													lua_pushinteger(L,  GET_Y_LPARAM(msg.lParam));
+													lua_pushinteger(L,  GET_X_LPARAM(msg.lParam)/dpi);
+													lua_pushinteger(L,  GET_Y_LPARAM(msg.lParam)/dpi);
 													break;
 							case WM_LUACLICK:
 							case WM_LUAMOVE:						
-	push_params:									lua_pushinteger(L, msg.wParam);
-													lua_pushinteger(L, msg.lParam);
+	push_params:									lua_pushinteger(L, msg.wParam/dpi);
+													lua_pushinteger(L, msg.lParam/dpi);
 													break;
-							case WM_LUAHOVER:	lua_pushinteger(L, GET_X_LPARAM(msg.lParam));
-												lua_pushinteger(L, GET_Y_LPARAM(msg.lParam));
+							case WM_LUAHOVER:	lua_pushinteger(L, GET_X_LPARAM(msg.lParam)/dpi);
+												lua_pushinteger(L, GET_Y_LPARAM(msg.lParam)/dpi);
 												lua_createtable(L, 0, 5);
 												lua_pushboolean(L, msg.wParam & MK_CONTROL);
 												lua_setfield(L, -2, "control");
